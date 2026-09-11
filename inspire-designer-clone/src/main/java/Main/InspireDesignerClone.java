@@ -12,8 +12,6 @@ public class InspireDesignerClone {
 
         // 1. Modulo de Lectura
         DataInputModule lector = new DataInputModule();
-        
-        // RUTA ABSOLUTA EXACTA a tu archivo CSV
         lector.setInputFilePath("C:/Users/Jon Jimz/Documents/NetBeansProjects/inspire-designer-clone/inspire-designer-clone/src/main/java/Main/clientes.csv"); 
         lector.setSkipFirstLines(1);
         
@@ -30,7 +28,7 @@ public class InspireDesignerClone {
         
         System.out.println("\nRegistros finales en memoria: " + contexto.getRecords().size());
 
-        // 4. Lanza tu interfaz grafica intacta
+        // 4. Lanza tu interfaz grafica con el Drag & Drop activado (Entrega E3)
         java.awt.EventQueue.invokeLater(new Runnable() {
             public void run() {
                 MainAppWindow ventanaPrincipal = new MainAppWindow();
