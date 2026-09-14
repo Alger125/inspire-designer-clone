@@ -1,57 +1,51 @@
 package com.vdp.core.model;
 
-import java.util.ArrayList;
+import com.vdp.core.model.ExecutionContext.DataType;
 import java.util.List;
 
-/**
- * Implementación exacta del Data Generator Module (Manual p. 106).
- */
-public class DataGeneratorModule extends BaseDataInputModule {
+/** Inspire Designer 14 Data Generator, manual section 4.2, page 106. */
+public final class DataGeneratorModule extends BaseDataInputModule {
+    public static final String VALUE_FIELD_NAME = "Value";
+
+    private String arrayName = "Numbers";
+    private int from = 1;
+    private int to = 100;
 
     public DataGeneratorModule() {
-        super("Data Generator");
-        // Valores predeterminados documentados
-        setProperty("Array", "Numbers");
-        setProperty("From", 1);
-        setProperty("To", 100);
+        super("DataGenerator1");
     }
 
-    @Override
-    protected List<String> specificValidation() {
-        List<String> errors = new ArrayList<>();
-        
-        String arrayName = (String) getProperty("Array");
-        if (arrayName == null || arrayName.trim().isEmpty()) {
-            errors.add("Error: Array name cannot be empty.");
-        }
+    public String getArrayName() { return arrayName; }
+    public void setArrayName(String arrayName) { this.arrayName = arrayName; }
+    public int getFrom() { return from; }
+    public void setFrom(int from) { this.from = from; }
+    public int getTo() { return to; }
+    public void setTo(int to) { this.to = to; }
 
-        int from = (int) getProperty("From");
-        int to = (int) getProperty("To");
+    @Override
+    protected void validateConfiguration(List<String> errors) {
+        if (arrayName == null || arrayName.isBlank()) {
+            errors.add("Array name cannot be blank");
+        }
         if (from > to) {
-            errors.add("Error: 'From' value (" + from + ") cannot be greater than 'To' value (" + to + ").");
+            errors.add("From must be less than or equal to To");
         }
-
-        return errors;
+        if ((long) to - from + 1L > Integer.MAX_VALUE) {
+            errors.add("The selected range is too large");
+        }
     }
 
     @Override
-    protected String[] getGeneratedColumnNames() {
-        // Estructura de salida documentada: un solo campo llamado Value
-        return new String[] { "Value" }; 
-    }
-
-    @Override
-    protected List<String[]> generateOrReadData() {
-        int from = (int) getProperty("From");
-        int to = (int) getProperty("To");
-        
-        List<String[]> data = new ArrayList<>();
-        
-        // El rango es inclusivo
-        for (int i = from; i <= to; i++) {
-            data.add(new String[]{ String.valueOf(i) });
+    protected DataInputResult readData() {
+        int count = to - from + 1;
+        List<String[]> records = new java.util.ArrayList<>(count);
+        for (long value = from; value <= to; value++) {
+            records.add(new String[]{Long.toString(value)});
         }
-        
-        return data;
+        return new DataInputResult(
+                arrayName,
+                new String[]{VALUE_FIELD_NAME},
+                new DataType[]{DataType.NUMBER},
+                records);
     }
 }

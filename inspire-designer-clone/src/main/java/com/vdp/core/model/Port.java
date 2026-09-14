@@ -3,9 +3,9 @@ package com.vdp.core.model;
 import java.util.UUID;
 
 public class Port {
-    private String id;
-    private String name;
-    private PortType type;
+    private final String id;
+    private final String name;
+    private final PortType type;
     
     public enum PortType {
         DATA, SHEET
@@ -18,5 +18,6 @@ public class Port {
     }
 
     public String getId() { return id; }
+    public String getName() { return name; }
     public PortType getType() { return type; }
 }

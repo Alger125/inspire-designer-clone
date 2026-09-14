@@ -1,16 +1,14 @@
 package com.vdp.core.model;
 
 import java.io.BufferedReader;
-import java.io.FileReader;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
+import java.util.regex.Pattern;
 
-public class DataInputModule implements InspireModule {
-    private String id;
-    private String name = "DataInput1"; 
-    private List<Port> outputPorts;
+public class DataInputModule extends BaseDataInputModule {
 
     // --- INPUT FILE TAB ---[cite: 2]
     private String rootArrayName = "Records"; 
@@ -37,40 +35,39 @@ public class DataInputModule implements InspireModule {
     }
 
     public DataInputModule() {
-        this.id = UUID.randomUUID().toString();
-        this.outputPorts = new ArrayList<>();
-        this.outputPorts.add(new Port("DataOutput", Port.PortType.DATA));
+        super("DataInput1");
     }
 
     @Override
-    public String getId() { return id; }
-
-    @Override
-    public String getName() { return name; }
-
-    @Override
-    public String getModuleFamily() { return "Data Inputs"; }
-
-    @Override
-    public List<Port> getInputPorts() { return new ArrayList<>(); }
-
-    @Override
-    public List<Port> getOutputPorts() { return outputPorts; }
-
-    @Override
-    public List<String> validate() {
-        List<String> errors = new ArrayList<>();
+    protected void validateConfiguration(List<String> errors) {
         if (inputFilePath == null || inputFilePath.isEmpty()) {
-            errors.add("Error: Input file path is missing in " + name);
+            errors.add("Input file path is missing");
+        } else if (!Files.isRegularFile(Path.of(inputFilePath))) {
+            errors.add("Input file does not exist: " + inputFilePath);
         }
-        return errors;
+        if (rootArrayName == null || rootArrayName.isBlank()) {
+            errors.add("Root array name cannot be blank");
+        }
+        if (fileType != FileType.CSV) {
+            errors.add("Only CSV is implemented in the current milestone");
+        }
+        if (fieldSeparators == null || fieldSeparators.isEmpty()) {
+            errors.add("Field separator cannot be empty");
+        }
+        try {
+            Charset.forName(textEncoding);
+        } catch (Exception exception) {
+            errors.add("Unsupported text encoding: " + textEncoding);
+        }
     }
 
     @Override
-    public void execute(ExecutionContext context) {
-        System.out.println("--- Ejecutando Modulo: " + name + " ---");
-        
-        try (BufferedReader br = new BufferedReader(new FileReader(inputFilePath))) {
+    protected DataInputResult readData() throws Exception {
+        List<String[]> records = new ArrayList<>();
+        String[] columnNames = null;
+
+        try (BufferedReader br = Files.newBufferedReader(
+                Path.of(inputFilePath), Charset.forName(textEncoding))) {
             String line;
             int currentLine = 0;
             boolean isFirstDataRow = true;
@@ -78,38 +75,63 @@ public class DataInputModule implements InspireModule {
             while ((line = br.readLine()) != null) {
                 currentLine++;
                 
-                // 1. Saltamos las lineas configuradas en "skipFirstLines"[cite: 2]
                 if (currentLine <= skipFirstLines) {
-                    continue; 
+                    continue;
                 }
 
-                // 2. Separar por comas (fieldSeparators), ignorando las que están entre comillas (textQualifiers)[cite: 2]
-                String regex = fieldSeparators + "(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)";
+                String separator = Pattern.quote(fieldSeparators);
+                String regex = separator + "(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)";
                 String[] values = line.split(regex, -1);
 
-                // 3. Limpiar las comillas de los valores finales[cite: 2]
                 for (int i = 0; i < values.length; i++) {
-                    values[i] = values[i].replaceAll("^" + textQualifiers, "")
-                                         .replaceAll(textQualifiers + "$", "").trim();
+                    values[i] = removeOuterQualifier(values[i]);
                 }
 
-                // 4. Determinar si es cabecera o registro y guardar en el CONTEXTO[cite: 2]
                 if (useFirstRecordAsFieldNames && isFirstDataRow) {
-                    context.setColumnNames(values);
-                    System.out.println("=> ESQUEMA DETECTADO Y GUARDADO: " + Arrays.toString(values));
+                    columnNames = values;
                     isFirstDataRow = false;
                 } else {
-                    context.getRecords().add(values);
-                    System.out.println("Registro leido en memoria: " + Arrays.toString(values));
+                    if (columnNames == null) {
+                        columnNames = defaultColumnNames(values.length);
+                    }
+                    records.add(values);
+                    isFirstDataRow = false;
                 }
             }
-        } catch (Exception e) {
-            System.out.println("Error fatal al leer el archivo: " + e.getMessage());
         }
+
+        if (columnNames == null) {
+            columnNames = new String[0];
+        }
+        ExecutionContext.DataType[] types = new ExecutionContext.DataType[columnNames.length];
+        java.util.Arrays.fill(types, ExecutionContext.DataType.STRING);
+        return new DataInputResult(rootArrayName, columnNames, types, records);
+    }
+
+    private String removeOuterQualifier(String value) {
+        String trimmed = value.trim();
+        if (!textQualifiers.isEmpty()
+                && trimmed.startsWith(textQualifiers)
+                && trimmed.endsWith(textQualifiers)
+                && trimmed.length() >= textQualifiers.length() * 2) {
+            return trimmed.substring(
+                    textQualifiers.length(), trimmed.length() - textQualifiers.length());
+        }
+        return trimmed;
+    }
+
+    private String[] defaultColumnNames(int count) {
+        String[] names = new String[count];
+        for (int index = 0; index < count; index++) {
+            names[index] = "Field" + (index + 1);
+        }
+        return names;
     }
 
     // Getters y Setters
     public void setInputFilePath(String path) { this.inputFilePath = path; }
     public void setFieldSeparators(String sep) { this.fieldSeparators = sep; }
     public void setSkipFirstLines(int skip) { this.skipFirstLines = skip; }
+    public void setTextEncoding(String encoding) { this.textEncoding = encoding; }
+    public void setRootArrayName(String rootArrayName) { this.rootArrayName = rootArrayName; }
 }

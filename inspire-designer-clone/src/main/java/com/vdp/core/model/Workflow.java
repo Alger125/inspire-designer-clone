@@ -5,9 +5,9 @@ import java.util.List;
 import java.util.UUID;
 
 public class Workflow {
-    private String id;
-    private String name;
-    private List<InspireModule> modules;
+    private final String id;
+    private final String name;
+    private final List<InspireModule> modules;
 
     public Workflow(String name) {
         this.id = UUID.randomUUID().toString();
@@ -18,6 +18,14 @@ public class Workflow {
     public void addModule(InspireModule module) {
         this.modules.add(module);
     }
+
+    public void removeModule(InspireModule module) {
+        this.modules.remove(module);
+    }
+
+    public String getId() { return id; }
+
+    public String getName() { return name; }
     
     public List<InspireModule> getModules() {
         return modules;
