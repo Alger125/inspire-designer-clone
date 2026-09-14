@@ -3,6 +3,7 @@ package Main;
 import com.vdp.core.view.MainAppWindow;
 import javax.swing.SwingUtilities;
 
+
 public class InspireDesignerClone {
 
     public static void main(String[] args) {

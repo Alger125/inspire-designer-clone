@@ -1,8 +1,11 @@
 package com.vdp.core.view;
 
+import com.vdp.core.controller.WorkflowController;
 import com.vdp.core.model.DataGeneratorModule;
+import com.vdp.core.model.ProofRunResult;
 import com.vdp.core.model.Workflow;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -19,14 +22,23 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JToolBar;
+import com.vdp.core.model.DataFilterModule;
 
-/** Main workflow shell aligned with the manual's Workflow Window layout. */
+/** Main workflow shell aligned with the manual's Workflow and Proof windows. */
 public final class MainAppWindow extends JFrame {
     private static final long serialVersionUID = 1L;
+    private static final String WORKFLOW_CARD = "WORKFLOW";
+    private static final String DATA_PROOF_CARD = "DATA_PROOF";
 
     private final Workflow workflow = new Workflow("New Workflow 1");
+    private final WorkflowController controller = new WorkflowController();
+    private final ValidationResultsPanel validationPanel = new ValidationResultsPanel();
+    private final DataProofPanel dataProofPanel = new DataProofPanel();
     private final JLabel status = new JLabel("Workflow ready");
+    private final CardLayout workspaceLayout = new CardLayout();
+    private final JPanel workspaceCards = new JPanel(workspaceLayout);
     private WorkflowCanvas workflowCanvas;
+    private ProofRunResult lastProofResult;
 
     public MainAppWindow() {
         InspireTheme.install();
@@ -37,9 +49,12 @@ public final class MainAppWindow extends JFrame {
         setLocationRelativeTo(null);
         setJMenuBar(createMenuBar());
 
+        workspaceCards.add(createWorkflowWorkspace(), WORKFLOW_CARD);
+        workspaceCards.add(dataProofPanel, DATA_PROOF_CARD);
+
         JPanel root = new JPanel(new BorderLayout());
         root.add(createToolbar(), BorderLayout.NORTH);
-        root.add(createWorkspace(), BorderLayout.CENTER);
+        root.add(workspaceCards, BorderLayout.CENTER);
         root.add(createBottomArea(), BorderLayout.SOUTH);
         setContentPane(root);
     }
@@ -74,15 +89,19 @@ public final class MainAppWindow extends JFrame {
         toolbar.add(InspireTheme.toolbarButton("▤", "Copy"));
         toolbar.add(InspireTheme.toolbarButton("▥", "Paste"));
         toolbar.addSeparator();
-        toolbar.add(InspireTheme.toolbarButton("✓", "Validate Workflow"));
-        toolbar.add(InspireTheme.toolbarButton("▶", "Proof"));
+        JButton validate = InspireTheme.toolbarButton("✓", "Validate Workflow");
+        validate.addActionListener(event -> validateWorkflow());
+        toolbar.add(validate);
+        JButton runProof = InspireTheme.toolbarButton("▶", "Run Proof");
+        runProof.addActionListener(event -> runProof());
+        toolbar.add(runProof);
         toolbar.addSeparator();
         toolbar.add(InspireTheme.toolbarButton("−", "Zoom Out"));
         toolbar.add(InspireTheme.toolbarButton("+", "Zoom In"));
         return toolbar;
     }
 
-    private JSplitPane createWorkspace() {
+    private JSplitPane createWorkflowWorkspace() {
         ModulePalette palette = new ModulePalette();
         JPanel templates = createTemplatesPanel();
         JSplitPane left = new JSplitPane(JSplitPane.VERTICAL_SPLIT, palette, templates);
@@ -95,8 +114,7 @@ public final class MainAppWindow extends JFrame {
         JScrollPane canvasScroll = new JScrollPane(workflowCanvas);
         canvasScroll.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, InspireTheme.BORDER));
 
-        JPanel validation = createValidationPanel();
-        JSplitPane center = new JSplitPane(JSplitPane.VERTICAL_SPLIT, canvasScroll, validation);
+        JSplitPane center = new JSplitPane(JSplitPane.VERTICAL_SPLIT, canvasScroll, validationPanel);
         center.setResizeWeight(0.82);
         center.setDividerLocation(535);
         center.setBorder(BorderFactory.createEmptyBorder());
@@ -129,21 +147,6 @@ public final class MainAppWindow extends JFrame {
         return panel;
     }
 
-    private JPanel createValidationPanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(Color.WHITE);
-        panel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, InspireTheme.BORDER));
-        JLabel title = new JLabel("Validation Results");
-        title.setForeground(InspireTheme.TEXT);
-        title.setBorder(BorderFactory.createEmptyBorder(4, 7, 4, 4));
-        panel.add(title, BorderLayout.NORTH);
-        JLabel empty = new JLabel("No validation has been run.");
-        empty.setForeground(new Color(155, 155, 155));
-        empty.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 10));
-        panel.add(empty, BorderLayout.CENTER);
-        return panel;
-    }
-
     private JPanel createBottomArea() {
         JPanel bottom = new JPanel(new GridLayout(2, 1));
         bottom.setPreferredSize(new Dimension(10, 48));
@@ -152,13 +155,12 @@ public final class MainAppWindow extends JFrame {
         tabs.setBackground(InspireTheme.TOOLBAR);
         String[] labels = {"ICM", "ICM Explorer", "Proof", "Sheet", "Data", "New Workflow 1", "Workflow"};
         for (String label : labels) {
-            JButton tab = new JButton(label);
-            tab.setFont(tab.getFont().deriveFont(Font.PLAIN, 11f));
-            tab.setFocusable(false);
-            tab.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createMatteBorder(1, 1, 0, 0, InspireTheme.BORDER),
-                    BorderFactory.createEmptyBorder(2, 10, 2, 10)));
-            tab.setBackground(label.equals("Workflow") ? Color.WHITE : InspireTheme.TOOLBAR);
+            JButton tab = createTab(label);
+            if (label.equals("Workflow") || label.equals("New Workflow 1")) {
+                tab.addActionListener(event -> showWorkflow());
+            } else if (label.equals("Proof")) {
+                tab.addActionListener(event -> showDataProof());
+            }
             tabs.add(tab);
         }
 
@@ -178,16 +180,96 @@ public final class MainAppWindow extends JFrame {
         return bottom;
     }
 
-    private void editModule(WorkflowNode node) {
-        if (node.getModule() instanceof DataGeneratorModule generator) {
-            DataGeneratorConfigDialog dialog = new DataGeneratorConfigDialog(this, generator);
-            dialog.setVisible(true);
-            if (dialog.isAccepted()) {
-                node.repaint();
-                status.setText("Data Generator configuration updated");
-            }
+    private JButton createTab(String label) {
+        JButton tab = new JButton(label);
+        tab.setFont(tab.getFont().deriveFont(Font.PLAIN, 11f));
+        tab.setFocusable(false);
+        tab.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 1, 0, 0, InspireTheme.BORDER),
+                BorderFactory.createEmptyBorder(2, 10, 2, 10)));
+        tab.setBackground(label.equals("Workflow") ? Color.WHITE : InspireTheme.TOOLBAR);
+        return tab;
+    }
+
+    private void validateWorkflow() {
+        java.util.List<com.vdp.core.model.ValidationMessage> messages = new java.util.ArrayList<>();
+        if (workflow.getModules().isEmpty()) {
+            messages.add(com.vdp.core.model.ValidationMessage.workflowError(
+                    "Add at least one module before validating the workflow."));
         } else {
-            status.setText("Configuration dialog not implemented for " + node.getModule().getName());
+            for (com.vdp.core.model.InspireModule module : workflow.getModules()) {
+                for (String error : module.validate()) {
+                    messages.add(com.vdp.core.model.ValidationMessage.error(module, error));
+                }
+            }
         }
+        validationPanel.showMessages(messages);
+        status.setText(messages.isEmpty() ? "Workflow validation passed" : "Workflow validation failed");
+    }
+
+    private void runProof() {
+        ProofRunResult result = controller.runProof(workflow, workflowCanvas.getSelectedModuleId());
+        lastProofResult = result;
+        validationPanel.showMessages(result.getValidationMessages());
+        if (result.isSuccessful()) {
+            dataProofPanel.showResult(result);
+            workspaceLayout.show(workspaceCards, DATA_PROOF_CARD);
+            status.setText("Proof completed: " + result.getSnapshots().size() + " module(s)");
+        } else {
+            workspaceLayout.show(workspaceCards, WORKFLOW_CARD);
+            status.setText("Proof failed. Review Validation Results.");
+        }
+    }
+
+    private void showWorkflow() {
+        workspaceLayout.show(workspaceCards, WORKFLOW_CARD);
+        status.setText("Workflow ready");
+    }
+
+    private void showDataProof() {
+        boolean hasProof = lastProofResult != null && lastProofResult.isSuccessful();
+        if (hasProof) {
+            dataProofPanel.showLastOrEmpty();
+        }
+        workspaceLayout.show(workspaceCards, DATA_PROOF_CARD);
+        status.setText(hasProof
+                ? "Showing last Data Proof result" : "Run Proof to inspect data");
+    }
+
+    private void editModule(WorkflowNode node) {
+    if (node.getModule() instanceof DataGeneratorModule generator) {
+
+        DataGeneratorConfigDialog dialog =
+                new DataGeneratorConfigDialog(this, generator);
+
+        dialog.setVisible(true);
+
+        if (dialog.isAccepted()) {
+            node.repaint();
+            status.setText(
+                    "Data Generator configuration updated"
+            );
+        }
+
+    } else if (node.getModule() instanceof DataFilterModule filter) {
+
+        DataFilterConfigDialog dialog =
+                new DataFilterConfigDialog(this, filter);
+
+        dialog.setVisible(true);
+
+        if (dialog.isAccepted()) {
+            node.repaint();
+            status.setText(
+                    "Data Filter configuration updated"
+            );
+        }
+
+    } else {
+        status.setText(
+                "Configuration dialog not implemented for "
+                + node.getModule().getName()
+        );
+    }
     }
 }

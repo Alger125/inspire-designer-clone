@@ -47,4 +47,16 @@ public class ExecutionContext {
         columnTypes = Arrays.copyOf(newColumnTypes, newColumnTypes.length);
         records = new ArrayList<>(newRecords);
     }
+
+    public ExecutionContext copy() {
+        ExecutionContext copy = new ExecutionContext();
+        if (rootArrayName != null) {
+            List<String[]> copiedRecords = new ArrayList<>(records.size());
+            for (String[] record : records) {
+                copiedRecords.add(Arrays.copyOf(record, record.length));
+            }
+            copy.replaceData(rootArrayName, columnNames, columnTypes, copiedRecords);
+        }
+        return copy;
+    }
 }

@@ -44,6 +44,7 @@ final class WorkflowCanvas extends JPanel {
     private final Consumer<String> statusWriter;
     private final List<Wire> wires = new ArrayList<>();
     private WorkflowNode connectingSource;
+    private WorkflowNode selectedNode;
     private Point connectionCursor;
 
     WorkflowCanvas(
@@ -166,18 +167,65 @@ final class WorkflowCanvas extends JPanel {
         node.addMouseMotionListener(interaction);
     }
 
-    private void finishConnection(WorkflowNode source, Point point) {
-        WorkflowNode target = findInputNode(point, source);
-        if (target != null && wires.stream().noneMatch(
-                wire -> wire.source == source && wire.target == target)) {
-            wires.add(new Wire(source, target));
-            statusWriter.accept(source.getModule().getName() + " connected to "
-                    + target.getModule().getName());
+   private void finishConnection(
+        WorkflowNode source,
+        Point point) {
+
+    WorkflowNode target =
+            findInputNode(point, source);
+
+    boolean connectionDoesNotExist =
+            target != null
+            && wires.stream().noneMatch(
+                    wire ->
+                            wire.source == source
+                            && wire.target == target
+            );
+
+    if (connectionDoesNotExist) {
+        try {
+            /*
+             * Esta es la parte que faltaba:
+             * guardar la conexión dentro del Workflow.
+             */
+            workflow.connect(
+                    source.getModule(),
+                    source.getModule()
+                            .getOutputPorts()
+                            .get(0),
+
+                    target.getModule(),
+                    target.getModule()
+                            .getInputPorts()
+                            .get(0)
+            );
+
+            /*
+             * La conexión sólo se dibuja si el modelo
+             * aceptó correctamente la conexión.
+             */
+            wires.add(
+                    new Wire(source, target)
+            );
+
+            statusWriter.accept(
+                    source.getModule().getName()
+                    + " connected to "
+                    + target.getModule().getName()
+            );
+
+        } catch (IllegalArgumentException exception) {
+            statusWriter.accept(
+                    "Connection rejected: "
+                    + exception.getMessage()
+            );
         }
-        connectingSource = null;
-        connectionCursor = null;
-        repaint();
     }
+
+    connectingSource = null;
+    connectionCursor = null;
+    repaint();
+}
 
     private WorkflowNode findInputNode(Point point, WorkflowNode source) {
         for (Component component : getComponents()) {
@@ -192,6 +240,7 @@ final class WorkflowCanvas extends JPanel {
     }
 
     private void selectOnly(WorkflowNode selected) {
+        selectedNode = selected;
         for (Component component : getComponents()) {
             if (component instanceof WorkflowNode node) {
                 node.setNodeSelected(node == selected);
@@ -218,10 +267,17 @@ final class WorkflowCanvas extends JPanel {
 
     private void removeNode(WorkflowNode node) {
         wires.removeIf(wire -> wire.source == node || wire.target == node);
+        if (selectedNode == node) {
+            selectedNode = null;
+        }
         workflow.removeModule(node.getModule());
         remove(node);
         statusWriter.accept(node.getModule().getName() + " removed");
         repaint();
+    }
+
+    String getSelectedModuleId() {
+        return selectedNode == null ? null : selectedNode.getModule().getId();
     }
 
     @Override

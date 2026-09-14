@@ -1,108 +1,170 @@
 package com.vdp.core.model;
 
+import com.vdp.core.model.ExecutionContext.DataType;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
-// Clon exacto del Data Filter Module (Seccion 5.13)
-public class DataFilterModule implements InspireModule {
-    private String id;
-    private String name = "DataFilter1";
-    private List<Port> inputPorts;
-    private List<Port> outputPorts;
+/** Data Filter behavior from Inspire Designer 14 manual, section 5.13. */
+public final class DataFilterModule implements InspireModule {
+    private final String id = UUID.randomUUID().toString();
+    private final String name = "DataFilter1";
+    private final List<Port> inputPorts =
+            List.of(new Port("DataInput", Port.PortType.DATA));
+    private final List<Port> outputPorts =
+            List.of(new Port("DataOutput", Port.PortType.DATA));
 
-    // Configuracion principal documentada
-    private String fieldName; // Campo a evaluar
-    private Condition condition = Condition.EQUALS;
-    private String filterValue; // Valor a comparar
+    private String fieldName = "Value";
+    private Condition condition = Condition.NONE;
+    private String filterValue = "";
+    private boolean invertCondition;
+    private boolean allowMultipleValues;
 
     public enum Condition {
-        EQUALS, CONTAINS, GREATER_THAN, LESS_THAN // Condiciones documentadas
-    }
+        NONE("None"),
+        EQUAL_TO("Equal to"),
+        CONTAINS("Contains"),
+        BEGINS_WITH("Begins with"),
+        SMALLER_THAN("Smaller than"),
+        BIGGER_THAN("Bigger than");
 
-    public DataFilterModule() {
-        this.id = UUID.randomUUID().toString();
-        this.inputPorts = new ArrayList<>();
-        this.outputPorts = new ArrayList<>();
-        this.inputPorts.add(new Port("DataInput", Port.PortType.DATA));
-        this.outputPorts.add(new Port("DataOutput", Port.PortType.DATA));
+        private final String displayName;
+
+        Condition(String displayName) {
+            this.displayName = displayName;
+        }
+
+        @Override
+        public String toString() { return displayName; }
     }
 
     @Override
     public String getId() { return id; }
+
     @Override
     public String getName() { return name; }
+
     @Override
-    public String getModuleFamily() { return "Data Processing"; } 
+    public String getModuleFamily() { return "Data Processing"; }
+
     @Override
     public List<Port> getInputPorts() { return inputPorts; }
+
     @Override
     public List<Port> getOutputPorts() { return outputPorts; }
 
+    public String getFieldName() { return fieldName; }
+    public Condition getCondition() { return condition; }
+    public String getFilterValue() { return filterValue; }
+    public boolean isInvertCondition() { return invertCondition; }
+    public boolean isAllowMultipleValues() { return allowMultipleValues; }
+
+    public void setFieldName(String fieldName) { this.fieldName = fieldName; }
+    public void setCondition(Condition condition) {
+        this.condition = Objects.requireNonNull(condition, "condition");
+    }
+    public void setFilterValue(String filterValue) { this.filterValue = filterValue; }
+    public void setInvertCondition(boolean invertCondition) {
+        this.invertCondition = invertCondition;
+    }
+    public void setAllowMultipleValues(boolean allowMultipleValues) {
+        this.allowMultipleValues = allowMultipleValues;
+    }
+
     @Override
     public List<String> validate() {
+        if (condition == Condition.NONE) return List.of();
         List<String> errors = new ArrayList<>();
-        if (fieldName == null || fieldName.isEmpty()) errors.add("Falta el campo a filtrar en " + name);
-        if (filterValue == null) errors.add("Falta el valor de filtro en " + name);
-        return errors;
+        if (fieldName == null || fieldName.isBlank()) {
+            errors.add("Field name cannot be blank");
+        }
+        if (filterValue == null || filterValue.isBlank()) {
+            errors.add("Filter value cannot be blank");
+        }
+        if ((condition == Condition.BIGGER_THAN || condition == Condition.SMALLER_THAN)
+                && filterValue != null && !filterValue.isBlank()) {
+            try {
+                new BigDecimal(filterValue.trim());
+            } catch (NumberFormatException exception) {
+                errors.add("Filter value must be numeric for " + condition);
+            }
+        }
+        return List.copyOf(errors);
     }
 
     @Override
     public void execute(ExecutionContext context) {
-        System.out.println("\n--- Ejecutando Modulo: " + name + " ---");
-        
-        String[] headers = context.getColumnNames();
-        
-        // --- SEGURO DE VIDA: Si no hay datos, detenemos el filtro sin que explote ---
-        if (headers == null) {
-            System.out.println("Error: No hay datos ni cabeceras en la memoria. Revisa que el archivo CSV se haya leido bien.");
-            return;
+        Objects.requireNonNull(context, "context");
+        List<String> errors = validate();
+        if (!errors.isEmpty()) {
+            throw new IllegalStateException(String.join("; ", errors));
         }
+        if (condition == Condition.NONE) return;
 
-        int targetIndex = -1;
-
-        // Buscar en que columna esta el campo que queremos filtrar
-        for (int i = 0; i < headers.length; i++) {
-            if (headers[i].trim().equalsIgnoreCase(fieldName)) {
-                targetIndex = i;
-                break;
-            }
+        String[] columnNames = context.getColumnNames();
+        DataType[] columnTypes = context.getColumnTypes();
+        int fieldIndex = findFieldIndex(columnNames);
+        if (fieldIndex < 0) {
+            throw new IllegalStateException(
+                    "Field '" + fieldName + "' does not exist in the incoming data");
         }
-
-        if (targetIndex == -1) {
-            System.out.println("Error: El campo '" + fieldName + "' no existe en los datos.");
-            return;
+        if ((condition == Condition.BIGGER_THAN || condition == Condition.SMALLER_THAN)
+                && columnTypes[fieldIndex] != DataType.NUMBER) {
+            throw new IllegalStateException(
+                    "Field '" + fieldName + "' must be numeric for " + condition);
         }
 
         List<String[]> filteredRecords = new ArrayList<>();
-        
         for (String[] record : context.getRecords()) {
-            String cellValue = record[targetIndex].trim();
-            boolean keep = false;
-
-            switch (condition) {
-                case EQUALS:
-                    keep = cellValue.equalsIgnoreCase(filterValue);
-                    break;
-                case CONTAINS:
-                    keep = cellValue.toLowerCase().contains(filterValue.toLowerCase());
-                    break;
+            if (fieldIndex >= record.length) {
+                throw new IllegalStateException(
+                        "A record does not contain field '" + fieldName + "'");
             }
-
-            if (keep) {
-                filteredRecords.add(record);
-                System.out.println("Registro CONSERVADO: " + Arrays.toString(record));
-            } else {
-                System.out.println("Registro BLOQUEADO: " + Arrays.toString(record));
+            boolean matches = matches(record[fieldIndex]);
+            if (invertCondition ? !matches : matches) {
+                filteredRecords.add(Arrays.copyOf(record, record.length));
             }
         }
-        
-        context.setRecords(filteredRecords);
+        context.replaceData(
+                context.getRootArrayName(), columnNames, columnTypes, filteredRecords);
     }
 
-    // Setters para la configuracion
-    public void setFieldName(String fieldName) { this.fieldName = fieldName; }
-    public void setCondition(Condition condition) { this.condition = condition; }
-    public void setFilterValue(String filterValue) { this.filterValue = filterValue; }
+    private int findFieldIndex(String[] columnNames) {
+        for (int index = 0; index < columnNames.length; index++) {
+            if (columnNames[index].equalsIgnoreCase(fieldName.trim())) return index;
+        }
+        return -1;
+    }
+
+    private boolean matches(String cellValue) {
+        String value = cellValue == null ? "" : cellValue;
+        return switch (condition) {
+            case NONE -> true;
+            case EQUAL_TO -> textValues().stream().anyMatch(value::equals);
+            case CONTAINS -> textValues().stream().anyMatch(value::contains);
+            case BEGINS_WITH -> textValues().stream().anyMatch(value::startsWith);
+            case SMALLER_THAN -> number(value).compareTo(number(filterValue)) < 0;
+            case BIGGER_THAN -> number(value).compareTo(number(filterValue)) > 0;
+        };
+    }
+
+    private List<String> textValues() {
+        if (!allowMultipleValues) return List.of(filterValue);
+        return Arrays.stream(filterValue.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .toList();
+    }
+
+    private BigDecimal number(String value) {
+        try {
+            return new BigDecimal(value.trim());
+        } catch (NumberFormatException exception) {
+            throw new IllegalStateException(
+                    "Value '" + value + "' is not numeric", exception);
+        }
+    }
 }
