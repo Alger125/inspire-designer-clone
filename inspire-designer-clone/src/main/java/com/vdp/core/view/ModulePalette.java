@@ -41,7 +41,7 @@ final class ModulePalette extends JPanel {
         addItem(list, "XML Data Input", InspireTheme.DATA_INPUT, false);
         addItem(list, "ODBC Data Input", InspireTheme.DATA_INPUT, false);
         addItem(list, "Param Input", InspireTheme.DATA_INPUT, false);
-        addItem(list, "External Data Input", InspireTheme.DATA_INPUT, false);
+        addItem(list, "HTTP JSON Input", InspireTheme.DATA_INPUT, true);
         addItem(list, "SAP Data Input", InspireTheme.DATA_INPUT, false);
         addItem(list, "Data Generator", InspireTheme.DATA_INPUT, true);
         addItem(list, "Line Data Input", InspireTheme.DATA_INPUT, false);

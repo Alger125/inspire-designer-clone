@@ -25,6 +25,7 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
 import javax.swing.TransferHandler;
+import com.vdp.core.model.HttpJsonDataInputModule;
 
 final class WorkflowCanvas extends JPanel {
     private static final long serialVersionUID = 1L;
@@ -106,14 +107,17 @@ final class WorkflowCanvas extends JPanel {
         repaint();
     }
 
-    private InspireModule createModel(String type) {
-        return switch (type) {
-            case "Data Generator" -> new DataGeneratorModule();
-            case "Data Input" -> new DataInputModule();
-            case "Data Filter" -> new DataFilterModule();
-            default -> throw new IllegalArgumentException("Module not implemented: " + type);
-        };
-    }
+   private InspireModule createModel(String type) {
+    return switch (type) {
+        case "Data Generator" -> new DataGeneratorModule();
+        case "Data Input" -> new DataInputModule();
+        case "HTTP JSON Input" -> new HttpJsonDataInputModule();
+        case "Data Filter" -> new DataFilterModule();
+        default -> throw new IllegalArgumentException(
+                "Module not implemented: " + type
+        );
+    };
+}
 
     private void installNodeInteraction(WorkflowNode node) {
         MouseAdapter interaction = new MouseAdapter() {

@@ -23,21 +23,16 @@ public final class WorkflowController {
         List<InspireModule> modules = workflow.getModules();
 
         if (modules.isEmpty()) {
-            messages.add(
-                    ValidationMessage.workflowError(
-                            "Add at least one module before validating the workflow."
-                    )
-            );
-
+            messages.add(ValidationMessage.workflowError(
+                    "Add at least one module before validating the workflow."
+            ));
             return List.copyOf(messages);
         }
 
         validateModules(modules, messages);
 
         for (String error : workflow.validateConnections()) {
-            messages.add(
-                    ValidationMessage.workflowError(error)
-            );
+            messages.add(ValidationMessage.workflowError(error));
         }
 
         return List.copyOf(messages);
@@ -49,102 +44,62 @@ public final class WorkflowController {
 
         Objects.requireNonNull(workflow, "workflow");
 
-        List<ValidationMessage> messages = new ArrayList<>();
+        List<ValidationMessage> messages = new ArrayList<>(validateWorkflow(workflow));
         List<LogEntry> logs = new ArrayList<>();
-
-        Map<String, ExecutionSnapshot> snapshots =
-                new LinkedHashMap<>();
-
-        messages.addAll(validateWorkflow(workflow));
+        Map<String, ExecutionSnapshot> snapshots = new LinkedHashMap<>();
 
         if (hasErrors(messages)) {
-            return new ProofRunResult(
-                    messages,
-                    logs,
-                    snapshots,
-                    preferredModuleId
-            );
+            return new ProofRunResult(messages, logs, snapshots, preferredModuleId);
         }
 
-        Map<String, ExecutionContext> moduleOutputs =
-                new LinkedHashMap<>();
+        Map<String, ExecutionContext> moduleOutputs = new LinkedHashMap<>();
 
-        /*
-         * Ejecuta todos los módulos en el orden real del grafo:
-         * Data Generator antes que Data Filter.
-         */
-        for (InspireModule module
-                : workflow.getTopologicalOrder()) {
-
+        for (InspireModule module : workflow.getTopologicalOrder()) {
             try {
-                ExecutionContext context =
-                        inputContextFor(
-                                workflow,
-                                module,
-                                moduleOutputs
-                        );
+                ExecutionContext context = inputContextFor(
+                        workflow,
+                        module,
+                        moduleOutputs
+                );
 
                 module.execute(context);
 
-                /*
-                 * Guardamos una copia para que el siguiente módulo
-                 * reciba estos datos sin modificar el resultado anterior.
-                 */
-                moduleOutputs.put(
-                        module.getId(),
-                        context.copy()
-                );
+                moduleOutputs.put(module.getId(), context.copy());
 
                 ExecutionSnapshot snapshot =
-                        ExecutionSnapshot.from(
-                                module,
-                                context
-                        );
+                        ExecutionSnapshot.from(module, context);
 
-                snapshots.put(
-                        module.getId(),
-                        snapshot
-                );
+                snapshots.put(module.getId(), snapshot);
 
-                logs.add(
-                        LogEntry.status(
-                                module.getName()
-                                + " executed: "
-                                + snapshot.getRecordCount()
-                                + " records"
-                        )
-                );
+                logs.add(LogEntry.status(
+                        module.getName()
+                        + " executed: "
+                        + snapshot.getRecordCount()
+                        + " records"
+                ));
 
             } catch (RuntimeException exception) {
-                String detail =
-                        exception.getMessage() == null
+                String detail = exception.getMessage() == null
                         ? exception.getClass().getSimpleName()
                         : exception.getMessage();
 
-                messages.add(
-                        ValidationMessage.error(
-                                module,
-                                "Execution failed: " + detail
-                        )
-                );
+                messages.add(ValidationMessage.error(
+                        module,
+                        "Execution failed: " + detail
+                ));
 
-                logs.add(
-                        LogEntry.error(
-                                module.getName()
-                                + " failed: "
-                                + detail
-                        )
-                );
+                logs.add(LogEntry.error(
+                        module.getName() + " failed: " + detail
+                ));
+
+                // No ejecutar módulos posteriores con datos incompletos.
+                break;
             }
         }
 
-        String initialModuleId =
-                snapshots.containsKey(preferredModuleId)
+        String initialModuleId = snapshots.containsKey(preferredModuleId)
                 ? preferredModuleId
-                : snapshots.keySet()
-                        .stream()
-                        .findFirst()
-                        .orElse(null);
+                : snapshots.keySet().stream().findFirst().orElse(null);
 
         return new ProofRunResult(
                 messages,
@@ -160,32 +115,22 @@ public final class WorkflowController {
             Map<String, ExecutionContext> moduleOutputs) {
 
         List<WorkflowConnection> incoming =
-                workflow.getIncomingConnections(
-                        module.getId()
-                );
+                workflow.getIncomingConnections(module.getId());
 
-        /*
-         * Los módulos sin entrada, como Data Generator,
-         * comienzan con un contexto vacío.
-         */
         if (incoming.isEmpty()) {
             return new ExecutionContext();
         }
 
         if (incoming.size() > 1) {
             throw new IllegalStateException(
-                    "Multiple inputs are not supported by "
-                    + module.getName()
+                    "Multiple inputs are not supported by " + module.getName()
             );
         }
 
-        WorkflowConnection connection =
-                incoming.get(0);
+        WorkflowConnection connection = incoming.get(0);
 
         ExecutionContext sourceContext =
-                moduleOutputs.get(
-                        connection.sourceModuleId()
-                );
+                moduleOutputs.get(connection.sourceModuleId());
 
         if (sourceContext == null) {
             throw new IllegalStateException(
@@ -194,10 +139,6 @@ public final class WorkflowController {
             );
         }
 
-        /*
-         * Data Filter recibe una copia de los datos
-         * producidos por Data Generator.
-         */
         return sourceContext.copy();
     }
 
@@ -208,38 +149,25 @@ public final class WorkflowController {
         for (InspireModule module : modules) {
             try {
                 for (String error : module.validate()) {
-                    messages.add(
-                            ValidationMessage.error(
-                                    module,
-                                    error
-                            )
-                    );
+                    messages.add(ValidationMessage.error(module, error));
                 }
-
             } catch (RuntimeException exception) {
-                String detail =
-                        exception.getMessage() == null
+                String detail = exception.getMessage() == null
                         ? exception.getClass().getSimpleName()
                         : exception.getMessage();
 
-                messages.add(
-                        ValidationMessage.error(
-                                module,
-                                "Validation failed unexpectedly: "
-                                + detail
-                        )
-                );
+                messages.add(ValidationMessage.error(
+                        module,
+                        "Validation failed unexpectedly: " + detail
+                ));
             }
         }
     }
 
-    private boolean hasErrors(
-            List<ValidationMessage> messages) {
-
-        return messages.stream()
-                .anyMatch(message ->
-                        message.severity()
-                        == ValidationMessage.Severity.ERROR
-                );
+    private boolean hasErrors(List<ValidationMessage> messages) {
+        return messages.stream().anyMatch(
+                message -> message.severity()
+                == ValidationMessage.Severity.ERROR
+        );
     }
 }

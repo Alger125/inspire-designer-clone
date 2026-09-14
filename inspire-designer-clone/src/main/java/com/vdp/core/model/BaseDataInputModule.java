@@ -9,6 +9,7 @@ import java.util.UUID;
 public abstract class BaseDataInputModule implements InspireModule {
     private final String id = UUID.randomUUID().toString();
     private String name;
+
     private final List<Port> outputPorts =
             List.of(new Port("DataOutput", Port.PortType.DATA));
 
@@ -17,26 +18,37 @@ public abstract class BaseDataInputModule implements InspireModule {
     }
 
     @Override
-    public final String getId() { return id; }
+    public final String getId() {
+        return id;
+    }
 
     @Override
-    public final String getName() { return name; }
+    public final String getName() {
+        return name;
+    }
 
     public final void setName(String name) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("Module name cannot be blank");
         }
+
         this.name = name;
     }
 
     @Override
-    public final String getModuleFamily() { return "Data Inputs"; }
+    public final String getModuleFamily() {
+        return "Data Inputs";
+    }
 
     @Override
-    public final List<Port> getInputPorts() { return List.of(); }
+    public final List<Port> getInputPorts() {
+        return List.of();
+    }
 
     @Override
-    public final List<Port> getOutputPorts() { return outputPorts; }
+    public final List<Port> getOutputPorts() {
+        return outputPorts;
+    }
 
     @Override
     public final List<String> validate() {
@@ -48,22 +60,35 @@ public abstract class BaseDataInputModule implements InspireModule {
     @Override
     public final void execute(ExecutionContext context) {
         Objects.requireNonNull(context, "context");
+
         List<String> errors = validate();
+
         if (!errors.isEmpty()) {
             throw new IllegalStateException(String.join("; ", errors));
         }
 
         try {
             DataInputResult result = readData();
+
             context.replaceData(
                     result.getRootArrayName(),
                     result.getColumnNames(),
                     result.getColumnTypes(),
-                    result.getRecords());
+                    result.getRecords()
+            );
+
         } catch (RuntimeException exception) {
             throw exception;
+
         } catch (Exception exception) {
-            throw new IllegalStateException("Could not execute " + name, exception);
+            String detail = exception.getMessage() == null
+                    ? exception.getClass().getSimpleName()
+                    : exception.getMessage();
+
+            throw new IllegalStateException(
+                    "Could not execute " + name + ": " + detail,
+                    exception
+            );
         }
     }
 

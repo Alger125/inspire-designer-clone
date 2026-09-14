@@ -23,9 +23,14 @@ import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JToolBar;
 import com.vdp.core.model.DataFilterModule;
+import com.vdp.core.model.DataInputModule;
+import com.vdp.core.model.HttpJsonDataInputModule;
 
-/** Main workflow shell aligned with the manual's Workflow and Proof windows. */
+/**
+ * Main workflow shell aligned with the manual's Workflow and Proof windows.
+ */
 public final class MainAppWindow extends JFrame {
+
     private static final long serialVersionUID = 1L;
     private static final String WORKFLOW_CARD = "WORKFLOW";
     private static final String DATA_PROOF_CARD = "DATA_PROOF";
@@ -192,19 +197,16 @@ public final class MainAppWindow extends JFrame {
     }
 
     private void validateWorkflow() {
-        java.util.List<com.vdp.core.model.ValidationMessage> messages = new java.util.ArrayList<>();
-        if (workflow.getModules().isEmpty()) {
-            messages.add(com.vdp.core.model.ValidationMessage.workflowError(
-                    "Add at least one module before validating the workflow."));
-        } else {
-            for (com.vdp.core.model.InspireModule module : workflow.getModules()) {
-                for (String error : module.validate()) {
-                    messages.add(com.vdp.core.model.ValidationMessage.error(module, error));
-                }
-            }
-        }
+        java.util.List<com.vdp.core.model.ValidationMessage> messages
+                = controller.validateWorkflow(workflow);
+
         validationPanel.showMessages(messages);
-        status.setText(messages.isEmpty() ? "Workflow validation passed" : "Workflow validation failed");
+
+        status.setText(
+                messages.isEmpty()
+                ? "Workflow validation passed"
+                : "Workflow validation failed"
+        );
     }
 
     private void runProof() {
@@ -238,7 +240,6 @@ public final class MainAppWindow extends JFrame {
 
     private void editModule(WorkflowNode node) {
     if (node.getModule() instanceof DataGeneratorModule generator) {
-
         DataGeneratorConfigDialog dialog =
                 new DataGeneratorConfigDialog(this, generator);
 
@@ -246,13 +247,32 @@ public final class MainAppWindow extends JFrame {
 
         if (dialog.isAccepted()) {
             node.repaint();
-            status.setText(
-                    "Data Generator configuration updated"
-            );
+            status.setText("Data Generator configuration updated");
+        }
+
+    } else if (node.getModule() instanceof DataInputModule input) {
+        DataInputConfigDialog dialog =
+                new DataInputConfigDialog(this, input);
+
+        dialog.setVisible(true);
+
+        if (dialog.isAccepted()) {
+            node.repaint();
+            status.setText("Data Input configuration updated");
+        }
+
+    } else if (node.getModule() instanceof HttpJsonDataInputModule httpJson) {
+        HttpJsonDataInputConfigDialog dialog =
+                new HttpJsonDataInputConfigDialog(this, httpJson);
+
+        dialog.setVisible(true);
+
+        if (dialog.isAccepted()) {
+            node.repaint();
+            status.setText("HTTP JSON Input configuration updated");
         }
 
     } else if (node.getModule() instanceof DataFilterModule filter) {
-
         DataFilterConfigDialog dialog =
                 new DataFilterConfigDialog(this, filter);
 
@@ -260,9 +280,7 @@ public final class MainAppWindow extends JFrame {
 
         if (dialog.isAccepted()) {
             node.repaint();
-            status.setText(
-                    "Data Filter configuration updated"
-            );
+            status.setText("Data Filter configuration updated");
         }
 
     } else {
@@ -271,5 +289,5 @@ public final class MainAppWindow extends JFrame {
                 + node.getModule().getName()
         );
     }
-    }
+}
 }
