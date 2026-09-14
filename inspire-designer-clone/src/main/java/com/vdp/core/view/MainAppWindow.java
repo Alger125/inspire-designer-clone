@@ -1,5 +1,10 @@
 package com.vdp.core.view;
 
+import com.vdp.core.model.DataGeneratorModule;
+import com.vdp.core.model.DataInputModule;
+import com.vdp.core.model.DataFilterModule;
+import com.vdp.core.model.InspireModule;
+
 import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
@@ -11,11 +16,15 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MainAppWindow extends JFrame {
 
-    // --- 1. CLASES PARA LAS CONEXIONES (ENTREGA E4) ---
+    // --- MAPA PARA CONECTAR VISTA CON MODELO ---
+    private Map<JInternalFrame, InspireModule> nodeToModuleMap = new HashMap<>();
+
     class Wire {
         JInternalFrame source;
         JInternalFrame target;
@@ -31,10 +40,9 @@ public class MainAppWindow extends JFrame {
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
             Graphics2D g2 = (Graphics2D) g;
-            g2.setStroke(new BasicStroke(3)); // Grosor de la línea
+            g2.setStroke(new BasicStroke(3));
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-            // Dibujar conexiones establecidas (Líneas grises)
             g2.setColor(new Color(150, 150, 150));
             for (Wire wire : wires) {
                 Point p1 = getRightPortCoord(wire.source);
@@ -42,7 +50,6 @@ public class MainAppWindow extends JFrame {
                 drawBezierCurve(g2, p1.x, p1.y, p2.x, p2.y);
             }
 
-            // Dibujar la línea temporal mientras el usuario arrastra (Línea azul)
             if (draggingSource != null && dragPoint != null) {
                 g2.setColor(new Color(52, 152, 219)); 
                 Point p1 = getRightPortCoord(draggingSource);
@@ -59,7 +66,6 @@ public class MainAppWindow extends JFrame {
         }
 
         private void drawBezierCurve(Graphics2D g2, int x1, int y1, int x2, int y2) {
-            // Matemáticas para curvas suaves estilo Inspire Designer
             int ctrlx1 = x1 + 80;
             int ctrlx2 = x2 - 80;
             g2.draw(new java.awt.geom.CubicCurve2D.Double(x1, y1, ctrlx1, y1, ctrlx2, y2, x2, y2));
@@ -76,17 +82,18 @@ public class MainAppWindow extends JFrame {
 
         JMenuBar menuBar = new JMenuBar();
         menuBar.add(new JMenu("File"));
-        menuBar.add(new JMenu("Edit"));
-        menuBar.add(new JMenu("Workflow"));
-        menuBar.add(new JMenu("Window"));
-        menuBar.add(new JMenu("Help"));
         setJMenuBar(menuBar);
 
+        // --- POBLANDO EL ÁRBOL NUEVAMENTE ---
         DefaultMutableTreeNode root = new DefaultMutableTreeNode("Modules");
+        
         DefaultMutableTreeNode dataInputs = new DefaultMutableTreeNode("Data Inputs");
         dataInputs.add(new DefaultMutableTreeNode("Data Input"));
+        dataInputs.add(new DefaultMutableTreeNode("Data Generator")); // Agregamos el nuevo
+        
         DefaultMutableTreeNode dataProcessing = new DefaultMutableTreeNode("Data Processing");
         dataProcessing.add(new DefaultMutableTreeNode("Data Filter"));
+        
         root.add(dataInputs);
         root.add(dataProcessing);
 
@@ -107,7 +114,6 @@ public class MainAppWindow extends JFrame {
         JScrollPane treeScrollPane = new JScrollPane(moduleTree);
         treeScrollPane.setMinimumSize(new Dimension(250, 0));
 
-        // Usamos nuestro lienzo personalizado
         workflowArea = new WorkflowDesktopPane();
         workflowArea.setBackground(new Color(240, 240, 240));
 
@@ -131,40 +137,68 @@ public class MainAppWindow extends JFrame {
         getContentPane().add(splitPane, BorderLayout.CENTER);
     }
 
-    // --- 2. LÓGICA PARA CREAR MÓDULOS CON PUERTOS CONECTABLES ---
     private void crearModuloVisual(String nombreModulo, int x, int y) {
-        if (nombreModulo.equals("Data Input") || nombreModulo.equals("Data Filter")) {
+        if (nombreModulo.equals("Data Input") || nombreModulo.equals("Data Filter") || nombreModulo.equals("Data Generator")) {
+            
+            // 1. INSTANCIAR EL MÓDULO REAL DE JAVA
+            InspireModule instanciaModelo = null;
+            if (nombreModulo.equals("Data Generator")) {
+                instanciaModelo = new DataGeneratorModule();
+            } else if (nombreModulo.equals("Data Input")) {
+                instanciaModelo = new DataInputModule();
+            } else if (nombreModulo.equals("Data Filter")) {
+                instanciaModelo = new DataFilterModule();
+            }
+
+            // 2. CREAR LA VENTANITA VISUAL
             JInternalFrame moduloUI = new JInternalFrame(nombreModulo, true, true, true, true);
             moduloUI.setSize(180, 100);
             moduloUI.setLocation(x, y);
             
+            // 3. VINCULAR LA VISTA CON EL MODELO EN NUESTRO DICCIONARIO
+            nodeToModuleMap.put(moduloUI, instanciaModelo);
+
             JPanel panelPrincipal = new JPanel(new BorderLayout());
             panelPrincipal.add(new JLabel("⚙️ " + nombreModulo, SwingConstants.CENTER), BorderLayout.CENTER);
             
-            // Puerto Izquierdo (Entrada - Verde)
-            JPanel puertoEntrada = new JPanel();
-            puertoEntrada.setBackground(new Color(46, 204, 113)); 
-            puertoEntrada.setPreferredSize(new Dimension(15, 0));
-            puertoEntrada.setToolTipText("Puerto de Entrada (Input)");
+            // EVENTO DE DOBLE CLIC PARA ABRIR CONFIGURACIÓN
+            moduloUI.addMouseListener(new MouseAdapter() {
+                public void mouseClicked(MouseEvent e) {
+                    if (e.getClickCount() == 2) {
+                        InspireModule moduloClickeado = nodeToModuleMap.get(moduloUI);
+                        
+                        // Si es el Data Generator, abrimos su ventana especial
+                        if (moduloClickeado instanceof DataGeneratorModule) {
+                            // CORRECCIÓN: Hacemos el cast aquí para poder acceder a getProperty
+                            DataGeneratorModule generador = (DataGeneratorModule) moduloClickeado;
+                            DataGeneratorConfigDialog dialog = new DataGeneratorConfigDialog(MainAppWindow.this, generador);
+                            dialog.setVisible(true);
+                            if (dialog.isOk()) {
+                                System.out.println("Modulo actualizado. Nuevo rango: " + generador.getProperty("From") + " al " + generador.getProperty("To"));
+                            }
+                        }
+                    }
+                }
+            });
 
-            // Puerto Derecho (Salida - Azul)
+            // Puertos visuales (solo el Data Filter tiene entrada actualmente en nuestra lógica)
+            if (!nombreModulo.equals("Data Generator") && !nombreModulo.equals("Data Input")) {
+                JPanel puertoEntrada = new JPanel();
+                puertoEntrada.setBackground(new Color(46, 204, 113)); 
+                puertoEntrada.setPreferredSize(new Dimension(15, 0));
+                panelPrincipal.add(puertoEntrada, BorderLayout.WEST);
+            }
+
             JPanel puertoSalida = new JPanel();
             puertoSalida.setBackground(new Color(52, 152, 219)); 
             puertoSalida.setPreferredSize(new Dimension(15, 0));
             puertoSalida.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            puertoSalida.setToolTipText("Arrastra desde aquí para conectar");
 
-            // Eventos del ratón para dibujar la línea
             puertoSalida.addMouseListener(new MouseAdapter() {
-                public void mousePressed(MouseEvent e) {
-                    workflowArea.draggingSource = moduloUI; // Inicia el dibujo
-                }
+                public void mousePressed(MouseEvent e) { workflowArea.draggingSource = moduloUI; }
                 public void mouseReleased(MouseEvent e) {
-                    // Calculamos dónde soltó el clic
                     Point dropPoint = SwingUtilities.convertPoint(puertoSalida, e.getPoint(), workflowArea);
                     JInternalFrame target = null;
-                    
-                    // Buscamos si soltó el ratón encima de otra cajita
                     for (Component c : workflowArea.getComponents()) {
                         if (c instanceof JInternalFrame && c != moduloUI) {
                             if (c.getBounds().contains(dropPoint)) {
@@ -173,20 +207,16 @@ public class MainAppWindow extends JFrame {
                             }
                         }
                     }
-                    // Si encontró otra cajita, crea la conexión!
                     if (target != null) {
                         workflowArea.wires.add(new Wire(moduloUI, target));
-                        System.out.println("🔗 ¡Conectados: " + moduloUI.getTitle() + " -> " + target.getTitle() + "!");
+                        System.out.println("🔗 Conectados visualmente!");
                     }
-                    
-                    // Reseteamos y repintamos
                     workflowArea.draggingSource = null;
                     workflowArea.dragPoint = null;
                     workflowArea.repaint();
                 }
             });
 
-            // Actualiza la línea azul mientras mueves el ratón
             puertoSalida.addMouseMotionListener(new MouseMotionAdapter() {
                 public void mouseDragged(MouseEvent e) {
                     workflowArea.dragPoint = SwingUtilities.convertPoint(puertoSalida, e.getPoint(), workflowArea);
@@ -194,15 +224,11 @@ public class MainAppWindow extends JFrame {
                 }
             });
             
-            panelPrincipal.add(puertoEntrada, BorderLayout.WEST);
             panelPrincipal.add(puertoSalida, BorderLayout.EAST);
             moduloUI.add(panelPrincipal);
             
-            // Si mueves la ventana, las líneas se actualizan solas
             moduloUI.addComponentListener(new java.awt.event.ComponentAdapter() {
-                public void componentMoved(java.awt.event.ComponentEvent e) {
-                    workflowArea.repaint();
-                }
+                public void componentMoved(java.awt.event.ComponentEvent e) { workflowArea.repaint(); }
             });
 
             moduloUI.setVisible(true);
