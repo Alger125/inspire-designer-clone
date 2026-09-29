@@ -95,34 +95,48 @@ class WorkflowTest {
     @Test
     void testDisableElseRemovesConnection() {
         Workflow workflow = new Workflow("Test");
+        DataGeneratorModule gen = new DataGeneratorModule();
         DataFilterModule filter = new DataFilterModule();
         DataSorterModule sorter = new DataSorterModule();
+        
+        workflow.addModule(gen);
         workflow.addModule(filter);
         workflow.addModule(sorter);
         
         Port elsePort = filter.getOutputPorts().stream().filter(p -> p.getId().equals("Else")).findFirst().get();
         Port sorterIn = sorter.getInputPorts().get(0);
         
+        workflow.connect(gen, gen.getOutputPorts().get(0), filter, filter.getInputPorts().get(0));
         workflow.connect(filter, elsePort, sorter, sorterIn);
-        assertEquals(1, workflow.getConnections().size());
+        assertEquals(2, workflow.getConnections().size());
         
         // Disable Else port
         filter.setCreateElseOutput(false);
         // Ensure connection is invalid now
-        assertFalse(workflow.validateConnections().isEmpty());
+        List<String> errors = workflow.validateConnections();
+        assertFalse(errors.isEmpty());
+        assertTrue(errors.stream().anyMatch(e -> e.contains("Source port 'Else' not found on module")));
         
         // UI should call this to clean up
         workflow.cleanInvalidConnections();
-        assertEquals(0, workflow.getConnections().size());
+        assertEquals(1, workflow.getConnections().size());
+        assertEquals(gen.getId(), workflow.getConnections().get(0).sourceModuleId());
     }
 
     @Test
     void testMatchedAndElseToDifferentModules() {
         Workflow workflow = new Workflow("Routing");
+        DataGeneratorModule gen = new DataGeneratorModule();
+        gen.setTo(6);
+        
         DataFilterModule filter = new DataFilterModule();
+        filter.getCriteria().get(0).setFilterValue("3");
+        filter.getCriteria().get(0).setCondition(DataFilterModule.Condition.BIGGER_THAN);
+        
         DataSorterModule s1 = new DataSorterModule();
         DataSorterModule s2 = new DataSorterModule();
         
+        workflow.addModule(gen);
         workflow.addModule(filter);
         workflow.addModule(s1);
         workflow.addModule(s2);
@@ -130,15 +144,25 @@ class WorkflowTest {
         Port matchedPort = filter.getOutputPorts().stream().filter(p -> p.getId().equals("Matched")).findFirst().get();
         Port elsePort = filter.getOutputPorts().stream().filter(p -> p.getId().equals("Else")).findFirst().get();
         
+        workflow.connect(gen, gen.getOutputPorts().get(0), filter, filter.getInputPorts().get(0));
         workflow.connect(filter, matchedPort, s1, s1.getInputPorts().get(0));
         workflow.connect(filter, elsePort, s2, s2.getInputPorts().get(0));
         
-        assertEquals(2, workflow.getConnections().size());
+        assertEquals(3, workflow.getConnections().size());
         assertTrue(workflow.validateConnections().isEmpty());
+        
+        WorkflowController controller = new WorkflowController();
+        ProofRunResult result = controller.runProof(workflow, gen.getId());
+        
+        assertTrue(result.getValidationMessages().isEmpty());
+        // S1 gets Matched: 4, 5, 6 (3 records)
+        assertEquals(3, result.getSnapshots().get(s1.getId()).getRecordCount());
+        // S2 gets Else: 1, 2, 3 (3 records)
+        assertEquals(3, result.getSnapshots().get(s2.getId()).getRecordCount());
     }
 
     @Test
-    void testConnectToEmptySpaceThrows() {
+    void testConnectWithNullArgumentsThrows() {
         Workflow workflow = new Workflow("Test");
         DataFilterModule filter = new DataFilterModule();
         workflow.addModule(filter);

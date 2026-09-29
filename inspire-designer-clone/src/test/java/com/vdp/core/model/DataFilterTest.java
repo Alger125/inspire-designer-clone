@@ -154,10 +154,10 @@ class DataFilterTest {
         assertEquals(1, wf.getConnections().size(), "Connection should have been recovered using fallbacks");
         WorkflowConnection conn = wf.getConnections().get(0);
         
-        InspireModule m1 = wf.findModule("m1");
-        InspireModule m2 = wf.findModule("m2");
+        InspireModule source = wf.findModule(conn.sourceModuleId());
+        assertNotNull(source);
         
-        assertNotNull(m1.getOutputPorts().stream().filter(p -> p.getId().equals(conn.sourcePortId())).findFirst().orElse(null));
+        assertTrue(source.getOutputPorts().stream().anyMatch(port -> port.getId().equals(conn.sourcePortId())));
         assertEquals("Matched", conn.sourcePortId());
     }
 
