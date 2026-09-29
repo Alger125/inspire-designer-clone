@@ -1,6 +1,6 @@
 package com.vdp.core.model;
 
-import com.vdp.core.model.ExecutionContext.DataType;
+import java.util.List;
 import java.util.List;
 
 /** Inspire Designer 14 Data Generator, manual section 4.2, page 106. */
@@ -37,15 +37,12 @@ public final class DataGeneratorModule extends BaseDataInputModule {
 
     @Override
     protected DataInputResult readData() {
-        int count = to - from + 1;
-        List<String[]> records = new java.util.ArrayList<>(count);
+        DataNode rootNode = DataNode.arrayNode(arrayName);
         for (long value = from; value <= to; value++) {
-            records.add(new String[]{Long.toString(value)});
+            DataNode record = DataNode.objectNode("Record");
+            record.addChild(DataNode.valueNode(VALUE_FIELD_NAME, Long.toString(value)));
+            rootNode.addChild(record);
         }
-        return new DataInputResult(
-                arrayName,
-                new String[]{VALUE_FIELD_NAME},
-                new DataType[]{DataType.NUMBER},
-                records);
+        return new DataInputResult(rootNode);
     }
 }

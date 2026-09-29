@@ -120,6 +120,16 @@ final class WorkflowNode extends JComponent {
             g2.drawLine(centerX - 10, centerY - 4, centerX + 10, centerY - 4);
             g2.drawLine(centerX - 5, centerY + 6, centerX + 5, centerY + 6);
             g2.drawLine(centerX, centerY + 6, centerX, centerY + 18);
+        } else if (moduleType.equals("Data Sorter")) {
+            // Sorting glyph: three lines of decreasing length (funnel top to bottom)
+            // with a small downward arrow at the bottom
+            g2.drawLine(centerX - 14, centerY - 12, centerX + 14, centerY - 12);
+            g2.drawLine(centerX - 9,  centerY - 2,  centerX + 9,  centerY - 2);
+            g2.drawLine(centerX - 4,  centerY + 8,  centerX + 4,  centerY + 8);
+            // arrow tip
+            g2.drawLine(centerX,      centerY + 8,  centerX,      centerY + 18);
+            g2.drawLine(centerX - 5,  centerY + 13, centerX,      centerY + 18);
+            g2.drawLine(centerX + 5,  centerY + 13, centerX,      centerY + 18);
         } else {
             for (int column = -2; column <= 2; column++) {
                 g2.drawRect(centerX + column * 7 - 2, centerY - 16, 4, 32);

@@ -1,6 +1,5 @@
 package com.vdp.core.model;
 
-import com.vdp.core.model.ExecutionContext.DataType;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -47,23 +46,37 @@ public final class DataProofModel {
 
     public List<DataProofRow> getRows() {
         List<DataProofRow> rows = new ArrayList<>();
+        DataNode rootNode = snapshot.getRootNode();
+        if (rootNode == null) {
+            return List.copyOf(rows);
+        }
+
         String position = getTotalRecords() == 0
                 ? "0/0" : getCurrentRecordNumber() + "/" + getTotalRecords();
-        rows.add(new DataProofRow(snapshot.getRootArrayName(), "Array", position, 0));
+        
+        rows.add(new DataProofRow(rootNode.getName(), rootNode.getType().name(), position, 0));
 
-        String[] names = snapshot.getColumnNames();
-        DataType[] types = snapshot.getColumnTypes();
-        String[] record = currentRecordIndex < 0
-                ? new String[0] : snapshot.getRecord(currentRecordIndex);
-        for (int index = 0; index < names.length; index++) {
-            String value = index < record.length ? record[index] : "";
-            rows.add(new DataProofRow(names[index], displayType(types[index]), value, 1));
+        if (currentRecordIndex >= 0 && rootNode.getType() == DataNode.NodeType.ARRAY) {
+            if (currentRecordIndex < rootNode.getChildren().size()) {
+                DataNode currentRecord = rootNode.getChildren().get(currentRecordIndex);
+                flattenNode(currentRecord, rows, 1);
+            }
+        } else {
+            flattenNode(rootNode, rows, 1);
         }
+
         return List.copyOf(rows);
     }
 
-    private String displayType(DataType type) {
-        String lower = type.name().toLowerCase(java.util.Locale.ROOT);
-        return Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
+    private void flattenNode(DataNode node, List<DataProofRow> rows, int depth) {
+        if (node.getType() == DataNode.NodeType.VALUE) {
+            rows.add(new DataProofRow(node.getName(), "Value", node.getValue() != null ? node.getValue() : "", depth));
+        } else {
+            String value = node.getType() == DataNode.NodeType.ARRAY ? "[" + node.getChildren().size() + " items]" : "{...}";
+            rows.add(new DataProofRow(node.getName(), node.getType().name(), value, depth));
+            for (DataNode child : node.getChildren()) {
+                flattenNode(child, rows, depth + 1);
+            }
+        }
     }
 }

@@ -1,6 +1,6 @@
 package com.vdp.core.model;
 
-import com.vdp.core.model.ExecutionContext.DataType;
+import java.math.BigDecimal;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -11,7 +11,7 @@ import java.util.UUID;
 /** Data Filter behavior from Inspire Designer 14 manual, section 5.13. */
 public final class DataFilterModule implements InspireModule {
     private final String id = UUID.randomUUID().toString();
-    private final String name = "DataFilter1";
+    private String name = "DataFilter1";
     private final List<Port> inputPorts =
             List.of(new Port("DataInput", Port.PortType.DATA));
     private final List<Port> outputPorts =
@@ -46,6 +46,13 @@ public final class DataFilterModule implements InspireModule {
 
     @Override
     public String getName() { return name; }
+
+    public void setName(String name) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Module name cannot be blank");
+        }
+        this.name = name;
+    }
 
     @Override
     public String getModuleFamily() { return "Data Processing"; }
@@ -104,32 +111,34 @@ public final class DataFilterModule implements InspireModule {
         }
         if (condition == Condition.NONE) return;
 
-        String[] columnNames = context.getColumnNames();
-        DataType[] columnTypes = context.getColumnTypes();
-        int fieldIndex = findFieldIndex(columnNames);
-        if (fieldIndex < 0) {
-            throw new IllegalStateException(
-                    "Field '" + fieldName + "' does not exist in the incoming data");
-        }
-        if ((condition == Condition.BIGGER_THAN || condition == Condition.SMALLER_THAN)
-                && columnTypes[fieldIndex] != DataType.NUMBER) {
-            throw new IllegalStateException(
-                    "Field '" + fieldName + "' must be numeric for " + condition);
+        DataNode root = context.getRoot();
+        if (root == null || root.getType() != DataNode.NodeType.ARRAY) {
+            throw new IllegalStateException("DataFilter requires the root context to be an ARRAY node.");
         }
 
-        List<String[]> filteredRecords = new ArrayList<>();
-        for (String[] record : context.getRecords()) {
-            if (fieldIndex >= record.length) {
-                throw new IllegalStateException(
-                        "A record does not contain field '" + fieldName + "'");
+        List<DataNode> filteredRecords = new ArrayList<>();
+        
+        for (DataNode record : root.getChildren()) {
+            if (record.getType() != DataNode.NodeType.OBJECT) {
+                continue; // Skip non-objects
             }
-            boolean matches = matches(record[fieldIndex]);
+            
+            DataNode fieldNode = record.getChild(fieldName);
+            if (fieldNode == null) {
+                throw new IllegalStateException("A record does not contain field '" + fieldName + "'");
+            }
+
+            boolean matches = matches(fieldNode.getValue());
             if (invertCondition ? !matches : matches) {
-                filteredRecords.add(Arrays.copyOf(record, record.length));
+                filteredRecords.add(record.deepCopy());
             }
         }
-        context.replaceData(
-                context.getRootArrayName(), columnNames, columnTypes, filteredRecords);
+        
+        // Replace children of the root array with the filtered ones
+        root.getChildren().clear();
+        for (DataNode filtered : filteredRecords) {
+            root.addChild(filtered);
+        }
     }
 
     private int findFieldIndex(String[] columnNames) {

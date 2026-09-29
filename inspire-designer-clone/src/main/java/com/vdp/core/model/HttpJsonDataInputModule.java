@@ -2,7 +2,7 @@ package com.vdp.core.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.vdp.core.model.ExecutionContext.DataType;
+import java.io.IOException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -106,8 +106,7 @@ public class HttpJsonDataInputModule extends BaseDataInputModule {
             );
         }
 
-        List<JsonNode> objects = new ArrayList<>();
-        Set<String> fieldNames = new LinkedHashSet<>();
+        DataNode rootDataNode = DataNode.arrayNode(rootArrayName);
 
         for (JsonNode record : arrayNode) {
             if (!record.isObject()) {
@@ -115,33 +114,28 @@ public class HttpJsonDataInputModule extends BaseDataInputModule {
                         "Every record in the selected JSON array must be an object."
                 );
             }
-
-            objects.add(record);
-            record.fieldNames().forEachRemaining(fieldNames::add);
+            rootDataNode.addChild(convertJsonToDataNode(record, "Record"));
         }
 
-        String[] columnNames = fieldNames.toArray(String[]::new);
-        List<String[]> records = new ArrayList<>();
+        return new DataInputResult(rootDataNode);
+    }
 
-        for (JsonNode object : objects) {
-            String[] row = new String[columnNames.length];
-
-            for (int index = 0; index < columnNames.length; index++) {
-                JsonNode value = object.get(columnNames[index]);
-                row[index] = valueToString(value);
+    private DataNode convertJsonToDataNode(JsonNode jsonNode, String nodeName) {
+        if (jsonNode.isObject()) {
+            DataNode dataNode = DataNode.objectNode(nodeName);
+            jsonNode.fields().forEachRemaining(entry -> 
+                dataNode.addChild(convertJsonToDataNode(entry.getValue(), entry.getKey()))
+            );
+            return dataNode;
+        } else if (jsonNode.isArray()) {
+            DataNode dataNode = DataNode.arrayNode(nodeName);
+            for (int i = 0; i < jsonNode.size(); i++) {
+                dataNode.addChild(convertJsonToDataNode(jsonNode.get(i), "Item"));
             }
-
-            records.add(row);
+            return dataNode;
+        } else {
+            return DataNode.valueNode(nodeName, valueToString(jsonNode));
         }
-
-        DataType[] types = inferColumnTypes(columnNames, objects);
-
-        return new DataInputResult(
-                rootArrayName,
-                columnNames,
-                types,
-                records
-        );
     }
 
     /**
@@ -205,39 +199,7 @@ public class HttpJsonDataInputModule extends BaseDataInputModule {
         return value.toString();
     }
 
-    private DataType[] inferColumnTypes(
-            String[] columnNames,
-            List<JsonNode> objects) {
 
-        DataType[] types = new DataType[columnNames.length];
-        Arrays.fill(types, DataType.STRING);
-
-        for (int index = 0; index < columnNames.length; index++) {
-            boolean hasValue = false;
-            boolean allValuesAreNumbers = true;
-
-            for (JsonNode object : objects) {
-                JsonNode value = object.get(columnNames[index]);
-
-                if (value == null || value.isNull()) {
-                    continue;
-                }
-
-                hasValue = true;
-
-                if (!value.isNumber()) {
-                    allValuesAreNumbers = false;
-                    break;
-                }
-            }
-
-            if (hasValue && allValuesAreNumbers) {
-                types[index] = DataType.NUMBER;
-            }
-        }
-
-        return types;
-    }
 
     public String getEndpointUrl() {
         return endpointUrl;

@@ -1,10 +1,15 @@
 package com.vdp.core.view;
 
+import com.vdp.core.model.BaseDataInputModule;
 import com.vdp.core.model.DataFilterModule;
 import com.vdp.core.model.DataGeneratorModule;
 import com.vdp.core.model.DataInputModule;
+import com.vdp.core.model.DataSorterModule;
+import com.vdp.core.model.HttpJsonDataInputModule;
 import com.vdp.core.model.InspireModule;
 import com.vdp.core.model.Workflow;
+import com.vdp.core.model.WorkflowConnection;
+import com.vdp.core.model.WorkflowSerializer;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
@@ -18,17 +23,25 @@ import java.awt.datatransfer.DataFlavor;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
 import javax.swing.TransferHandler;
-import com.vdp.core.model.HttpJsonDataInputModule;
 
 final class WorkflowCanvas extends JPanel {
     private static final long serialVersionUID = 1L;
+
+    private static final double ZOOM_STEP = 0.25;
+    private static final double ZOOM_MIN  = 0.25;
+    private static final double ZOOM_MAX  = 2.0;
+
+    // ── Inner type for rendered connections ───────────────────────────────────
 
     private static final class Wire {
         private final WorkflowNode source;
@@ -40,19 +53,24 @@ final class WorkflowCanvas extends JPanel {
         }
     }
 
-    private final Workflow workflow;
+    // ── Fields ────────────────────────────────────────────────────────────────
+
+    private Workflow workflow;
     private final Consumer<WorkflowNode> moduleEditor;
-    private final Consumer<String> statusWriter;
-    private final List<Wire> wires = new ArrayList<>();
+    private final Consumer<String>       statusWriter;
+    private final List<Wire>             wires       = new ArrayList<>();
+    /** Tracks the palette-type string for each module id so we can serialize. */
+    private final Map<String, String>    moduleTypes = new LinkedHashMap<>();
+
     private WorkflowNode connectingSource;
     private WorkflowNode selectedNode;
-    private Point connectionCursor;
+    private Point        connectionCursor;
+    private double       zoomFactor = 1.0;
 
-    WorkflowCanvas(
-            Workflow workflow,
-            Consumer<WorkflowNode> moduleEditor,
-            Consumer<String> statusWriter) {
-        this.workflow = workflow;
+    // ── Constructor ───────────────────────────────────────────────────────────
+
+    WorkflowCanvas(Consumer<WorkflowNode> moduleEditor, Consumer<String> statusWriter) {
+        this.workflow     = new Workflow("New Workflow 1");
         this.moduleEditor = moduleEditor;
         this.statusWriter = statusWriter;
         setLayout(null);
@@ -60,6 +78,101 @@ final class WorkflowCanvas extends JPanel {
         setPreferredSize(new Dimension(1100, 720));
         setTransferHandler(createDropHandler());
     }
+
+    // ── Public API ────────────────────────────────────────────────────────────
+
+    /** Returns the live workflow model. */
+    Workflow getWorkflow() { return workflow; }
+
+    /** Returns which modules are selected (used by runProof). */
+    String getSelectedModuleId() {
+        return selectedNode == null ? null : selectedNode.getModule().getId();
+    }
+
+    /** Returns a snapshot of palette-type strings by module id. */
+    Map<String, String> getModuleTypes() { return Map.copyOf(moduleTypes); }
+
+    /** Returns the current canvas position of every node. */
+    Map<String, Point> getNodePositions() {
+        Map<String, Point> positions = new LinkedHashMap<>();
+        for (Component comp : getComponents()) {
+            if (comp instanceof WorkflowNode node) {
+                positions.put(node.getModule().getId(),
+                        new Point(node.getX(), node.getY()));
+            }
+        }
+        return positions;
+    }
+
+    // ── File operations (called by MainAppWindow) ─────────────────────────────
+
+    /** Clears the canvas and starts a fresh empty workflow. */
+    void newWorkflow(String name) {
+        clearCanvas();
+        workflow = new Workflow(name);
+        repaint();
+    }
+
+    /**
+     * Rebuilds the canvas from a {@link WorkflowSerializer.LoadResult}.
+     * Called by MainAppWindow after a successful file open.
+     */
+    void loadFrom(WorkflowSerializer.LoadResult result) {
+        clearCanvas();
+        workflow = result.workflow();
+        moduleTypes.putAll(result.moduleTypes());
+
+        for (InspireModule module : workflow.getModules()) {
+            String type      = moduleTypes.getOrDefault(module.getId(), "Unknown");
+            Point  pos       = result.nodePositions().getOrDefault(module.getId(), new Point(100, 100));
+            Color  accent    = isProcessingModule(type)
+                    ? InspireTheme.DATA_PROCESSING : InspireTheme.DATA_INPUT;
+            boolean acceptsInput = isProcessingModule(type);
+
+            WorkflowNode node = new WorkflowNode(type, module, accent, acceptsInput);
+            node.setLocation(pos.x, pos.y);
+            installNodeInteraction(node);
+            add(node);
+            setComponentZOrder(node, 0);
+        }
+
+        for (WorkflowConnection conn : workflow.getConnections()) {
+            WorkflowNode src = findNodeById(conn.sourceModuleId());
+            WorkflowNode tgt = findNodeById(conn.targetModuleId());
+            if (src != null && tgt != null) {
+                wires.add(new Wire(src, tgt));
+            }
+        }
+
+        revalidate();
+        repaint();
+    }
+
+    // ── Zoom ──────────────────────────────────────────────────────────────────
+
+    void zoomIn()  { applyZoom(Math.min(ZOOM_MAX, zoomFactor + ZOOM_STEP)); }
+    void zoomOut() { applyZoom(Math.max(ZOOM_MIN, zoomFactor - ZOOM_STEP)); }
+
+    private void applyZoom(double newZoom) {
+        if (newZoom == zoomFactor) return;
+        double ratio = newZoom / zoomFactor;
+        zoomFactor   = newZoom;
+
+        for (Component comp : getComponents()) {
+            if (comp instanceof WorkflowNode node) {
+                int nx = (int) Math.round(node.getX() * ratio);
+                int ny = (int) Math.round(node.getY() * ratio);
+                node.setLocation(nx, ny);
+            }
+        }
+        setPreferredSize(new Dimension(
+                (int) (1100 * zoomFactor), (int) (720 * zoomFactor)));
+        revalidate();
+        repaint();
+        statusWriter.accept(String.format("Zoom: %.0f%%", zoomFactor * 100));
+    }
+
+    // ── Drag-and-Drop handler ─────────────────────────────────────────────────
 
     private TransferHandler createDropHandler() {
         return new TransferHandler() {
@@ -73,14 +186,11 @@ final class WorkflowCanvas extends JPanel {
 
             @Override
             public boolean importData(TransferSupport support) {
-                if (!canImport(support)) {
-                    return false;
-                }
+                if (!canImport(support)) return false;
                 try {
                     String type = (String) support.getTransferable()
                             .getTransferData(DataFlavor.stringFlavor);
-                    Point point = support.getDropLocation().getDropPoint();
-                    addModule(type, point);
+                    addModule(type, support.getDropLocation().getDropPoint());
                     return true;
                 } catch (Exception exception) {
                     statusWriter.accept("Could not add module: " + exception.getMessage());
@@ -90,34 +200,44 @@ final class WorkflowCanvas extends JPanel {
         };
     }
 
+    // ── Module factory ────────────────────────────────────────────────────────
+
     private void addModule(String type, Point dropPoint) {
-        InspireModule module = createModel(type);
-        Color accent = type.equals("Data Filter")
+        InspireModule module      = createModel(type);
+        Color         accent      = isProcessingModule(type)
                 ? InspireTheme.DATA_PROCESSING : InspireTheme.DATA_INPUT;
-        boolean acceptsInput = type.equals("Data Filter");
+        boolean       acceptsInput = isProcessingModule(type);
+
         WorkflowNode node = new WorkflowNode(type, module, accent, acceptsInput);
-        int x = Math.max(8, dropPoint.x - WorkflowNode.WIDTH / 2);
+        int x = Math.max(8,  dropPoint.x - WorkflowNode.WIDTH  / 2);
         int y = Math.max(62, dropPoint.y - WorkflowNode.HEIGHT / 2);
         node.setLocation(x, y);
+
         installNodeInteraction(node);
         workflow.addModule(module);
+        moduleTypes.put(module.getId(), type);
         add(node);
         setComponentZOrder(node, 0);
         statusWriter.accept(type + " added to workflow");
         repaint();
     }
 
-   private InspireModule createModel(String type) {
-    return switch (type) {
-        case "Data Generator" -> new DataGeneratorModule();
-        case "Data Input" -> new DataInputModule();
-        case "HTTP JSON Input" -> new HttpJsonDataInputModule();
-        case "Data Filter" -> new DataFilterModule();
-        default -> throw new IllegalArgumentException(
-                "Module not implemented: " + type
-        );
-    };
-}
+    private InspireModule createModel(String type) {
+        return switch (type) {
+            case "Data Generator"  -> new DataGeneratorModule();
+            case "Data Input"      -> new DataInputModule();
+            case "HTTP JSON Input" -> new HttpJsonDataInputModule();
+            case "Data Filter"     -> new DataFilterModule();
+            case "Data Sorter"     -> new DataSorterModule();
+            default -> throw new IllegalArgumentException("Module not implemented: " + type);
+        };
+    }
+
+    private boolean isProcessingModule(String type) {
+        return type.equals("Data Filter") || type.equals("Data Sorter");
+    }
+
+    // ── Node interaction ──────────────────────────────────────────────────────
 
     private void installNodeInteraction(WorkflowNode node) {
         MouseAdapter interaction = new MouseAdapter() {
@@ -132,7 +252,8 @@ final class WorkflowCanvas extends JPanel {
                 }
                 if (node.isOutputHit(event.getPoint())) {
                     connectingSource = node;
-                    connectionCursor = SwingUtilities.convertPoint(node, event.getPoint(), WorkflowCanvas.this);
+                    connectionCursor = SwingUtilities.convertPoint(
+                            node, event.getPoint(), WorkflowCanvas.this);
                 } else {
                     dragOffset = event.getPoint();
                 }
@@ -141,12 +262,14 @@ final class WorkflowCanvas extends JPanel {
             @Override
             public void mouseDragged(MouseEvent event) {
                 if (connectingSource == node) {
-                    connectionCursor = SwingUtilities.convertPoint(node, event.getPoint(), WorkflowCanvas.this);
+                    connectionCursor = SwingUtilities.convertPoint(
+                            node, event.getPoint(), WorkflowCanvas.this);
                 } else if (dragOffset != null) {
-                    Point canvasPoint = SwingUtilities.convertPoint(node, event.getPoint(), WorkflowCanvas.this);
+                    Point canvas = SwingUtilities.convertPoint(
+                            node, event.getPoint(), WorkflowCanvas.this);
                     node.setLocation(
-                            Math.max(0, canvasPoint.x - dragOffset.x),
-                            Math.max(55, canvasPoint.y - dragOffset.y));
+                            Math.max(0,  canvas.x - dragOffset.x),
+                            Math.max(55, canvas.y - dragOffset.y));
                 }
                 repaint();
             }
@@ -154,8 +277,9 @@ final class WorkflowCanvas extends JPanel {
             @Override
             public void mouseReleased(MouseEvent event) {
                 if (connectingSource == node) {
-                    Point canvasPoint = SwingUtilities.convertPoint(node, event.getPoint(), WorkflowCanvas.this);
-                    finishConnection(node, canvasPoint);
+                    finishConnection(node,
+                            SwingUtilities.convertPoint(
+                                    node, event.getPoint(), WorkflowCanvas.this));
                 }
                 dragOffset = null;
             }
@@ -171,69 +295,36 @@ final class WorkflowCanvas extends JPanel {
         node.addMouseMotionListener(interaction);
     }
 
-   private void finishConnection(
-        WorkflowNode source,
-        Point point) {
+    private void finishConnection(WorkflowNode source, Point point) {
+        WorkflowNode target = findInputNode(point, source);
 
-    WorkflowNode target =
-            findInputNode(point, source);
+        boolean alreadyConnected = wires.stream().anyMatch(
+                w -> w.source == source && w.target == target);
 
-    boolean connectionDoesNotExist =
-            target != null
-            && wires.stream().noneMatch(
-                    wire ->
-                            wire.source == source
-                            && wire.target == target
-            );
-
-    if (connectionDoesNotExist) {
-        try {
-            /*
-             * Esta es la parte que faltaba:
-             * guardar la conexión dentro del Workflow.
-             */
-            workflow.connect(
-                    source.getModule(),
-                    source.getModule()
-                            .getOutputPorts()
-                            .get(0),
-
-                    target.getModule(),
-                    target.getModule()
-                            .getInputPorts()
-                            .get(0)
-            );
-
-            /*
-             * La conexión sólo se dibuja si el modelo
-             * aceptó correctamente la conexión.
-             */
-            wires.add(
-                    new Wire(source, target)
-            );
-
-            statusWriter.accept(
-                    source.getModule().getName()
-                    + " connected to "
-                    + target.getModule().getName()
-            );
-
-        } catch (IllegalArgumentException exception) {
-            statusWriter.accept(
-                    "Connection rejected: "
-                    + exception.getMessage()
-            );
+        if (target != null && !alreadyConnected) {
+            try {
+                workflow.connect(
+                        source.getModule(),
+                        source.getModule().getOutputPorts().get(0),
+                        target.getModule(),
+                        target.getModule().getInputPorts().get(0)
+                );
+                wires.add(new Wire(source, target));
+                statusWriter.accept(source.getModule().getName()
+                        + " connected to " + target.getModule().getName());
+            } catch (IllegalArgumentException exception) {
+                statusWriter.accept("Connection rejected: " + exception.getMessage());
+            }
         }
+
+        connectingSource = null;
+        connectionCursor = null;
+        repaint();
     }
 
-    connectingSource = null;
-    connectionCursor = null;
-    repaint();
-}
-
     private WorkflowNode findInputNode(Point point, WorkflowNode source) {
-        for (Component component : getComponents()) {
-            if (component instanceof WorkflowNode candidate
+        for (Component comp : getComponents()) {
+            if (comp instanceof WorkflowNode candidate
                     && candidate != source
                     && candidate.acceptsInput()
                     && candidate.getBounds().contains(point)) {
@@ -243,46 +334,99 @@ final class WorkflowCanvas extends JPanel {
         return null;
     }
 
+    private WorkflowNode findNodeById(String moduleId) {
+        for (Component comp : getComponents()) {
+            if (comp instanceof WorkflowNode node
+                    && node.getModule().getId().equals(moduleId)) {
+                return node;
+            }
+        }
+        return null;
+    }
+
     private void selectOnly(WorkflowNode selected) {
         selectedNode = selected;
-        for (Component component : getComponents()) {
-            if (component instanceof WorkflowNode node) {
+        for (Component comp : getComponents()) {
+            if (comp instanceof WorkflowNode node) {
                 node.setNodeSelected(node == selected);
             }
         }
     }
 
+    // ── Context menu ──────────────────────────────────────────────────────────
+
     private void showNodeMenu(WorkflowNode node, int x, int y) {
         JPopupMenu menu = new JPopupMenu();
+
         JMenuItem edit = new JMenuItem("Edit Module");
         edit.addActionListener(event -> moduleEditor.accept(node));
         menu.add(edit);
-        menu.add(new JMenuItem("Choose Module Icon"));
-        menu.add(new JMenuItem("Rename Module"));
+
+        menu.add(new JMenuItem("Choose Module Icon"));   // placeholder
+
+        JMenuItem rename = new JMenuItem("Rename Module");
+        rename.addActionListener(event -> renameNode(node));
+        menu.add(rename);
+
         menu.addSeparator();
+
         JMenuItem delete = new JMenuItem("Delete Module");
         delete.addActionListener(event -> removeNode(node));
         menu.add(delete);
+
         menu.addSeparator();
-        menu.add(new JMenuItem("Lock"));
-        menu.add(new JMenuItem("Lock with Password"));
+        menu.add(new JMenuItem("Lock"));                 // placeholder
+        menu.add(new JMenuItem("Lock with Password"));   // placeholder
+
         menu.show(node, x, y);
     }
 
-    private void removeNode(WorkflowNode node) {
-        wires.removeIf(wire -> wire.source == node || wire.target == node);
-        if (selectedNode == node) {
-            selectedNode = null;
+    /** Shows an input dialog and renames the module if the user confirms. */
+    private void renameNode(WorkflowNode node) {
+        String current = node.getModule().getName();
+        String newName = (String) JOptionPane.showInputDialog(
+                this,
+                "New name for the module:",
+                "Rename Module",
+                JOptionPane.PLAIN_MESSAGE,
+                null, null,
+                current);
+        if (newName == null || newName.isBlank()) return;
+        newName = newName.trim();
+        try {
+            applyModuleName(node.getModule(), newName);
+            node.repaint();
+            statusWriter.accept("Renamed to \"" + newName + "\"");
+        } catch (IllegalArgumentException exception) {
+            statusWriter.accept("Could not rename: " + exception.getMessage());
         }
+    }
+
+    /**
+     * Applies a new name to any concrete module type that exposes setName().
+     * All current types support renaming; new ones can be added here.
+     */
+    private void applyModuleName(InspireModule module, String name) {
+        if (module instanceof BaseDataInputModule m) {
+            m.setName(name);
+        } else if (module instanceof DataFilterModule m) {
+            m.setName(name);
+        } else if (module instanceof DataSorterModule m) {
+            m.setName(name);
+        }
+    }
+
+    private void removeNode(WorkflowNode node) {
+        wires.removeIf(w -> w.source == node || w.target == node);
+        if (selectedNode == node) selectedNode = null;
+        moduleTypes.remove(node.getModule().getId());
         workflow.removeModule(node.getModule());
         remove(node);
         statusWriter.accept(node.getModule().getName() + " removed");
         repaint();
     }
 
-    String getSelectedModuleId() {
-        return selectedNode == null ? null : selectedNode.getModule().getId();
-    }
+    // ── Painting ──────────────────────────────────────────────────────────────
 
     @Override
     protected void paintComponent(Graphics graphics) {
@@ -307,10 +451,10 @@ final class WorkflowCanvas extends JPanel {
     private void paintWorkflowInfo(Graphics2D g2) {
         g2.setColor(new Color(145, 145, 145));
         g2.setFont(getFont().deriveFont(Font.PLAIN, 27f));
-        g2.drawString("New Workflow 1.wfd", 12, 31);
+        g2.drawString(workflow.getName() + ".wfd", 12, 31);
         g2.setFont(getFont().deriveFont(Font.PLAIN, 10f));
-        g2.drawString("Path: not saved", 12, 45);
-        g2.drawString("Module count: " + workflow.getModules().size(), 12, 57);
+        g2.drawString("Modules: " + workflow.getModules().size(), 12, 45);
+        g2.drawString(String.format("Zoom: %.0f%%", zoomFactor * 100), 12, 57);
     }
 
     private void paintFloatingTools(Graphics2D g2) {
@@ -341,9 +485,24 @@ final class WorkflowCanvas extends JPanel {
     }
 
     private void paintWire(Graphics2D g2, Point start, Point end) {
-        int middleX = start.x + Math.max(20, (end.x - start.x) / 2);
-        g2.drawLine(start.x, start.y, middleX, start.y);
-        g2.drawLine(middleX, start.y, middleX, end.y);
-        g2.drawLine(middleX, end.y, end.x, end.y);
+        int midX = start.x + Math.max(20, (end.x - start.x) / 2);
+        g2.drawLine(start.x, start.y, midX,    start.y);
+        g2.drawLine(midX,    start.y, midX,    end.y);
+        g2.drawLine(midX,    end.y,   end.x,   end.y);
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    /** Removes all child components and resets internal state (but NOT workflow). */
+    private void clearCanvas() {
+        removeAll();
+        wires.clear();
+        moduleTypes.clear();
+        selectedNode    = null;
+        connectingSource = null;
+        connectionCursor = null;
+        zoomFactor      = 1.0;
+        setPreferredSize(new Dimension(1100, 720));
+        revalidate();
     }
 }

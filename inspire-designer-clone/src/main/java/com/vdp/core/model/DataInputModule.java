@@ -82,7 +82,7 @@ public final class DataInputModule extends BaseDataInputModule {
 
     @Override
     protected DataInputResult readData() throws Exception {
-        List<String[]> records = new ArrayList<>();
+        DataNode rootNode = DataNode.arrayNode(rootArrayName);
         String[] columnNames = null;
 
         try (BufferedReader reader = Files.newBufferedReader(
@@ -118,28 +118,18 @@ public final class DataInputModule extends BaseDataInputModule {
                         );
                     }
 
-                    records.add(values);
+                    DataNode record = DataNode.objectNode("Record");
+                    for (int i = 0; i < columnNames.length; i++) {
+                        record.addChild(DataNode.valueNode(columnNames[i], values[i]));
+                    }
+                    rootNode.addChild(record);
                 }
 
                 firstDataRecord = false;
             }
         }
 
-        if (columnNames == null) {
-            columnNames = new String[0];
-        }
-
-        ExecutionContext.DataType[] columnTypes =
-                new ExecutionContext.DataType[columnNames.length];
-
-        Arrays.fill(columnTypes, ExecutionContext.DataType.STRING);
-
-        return new DataInputResult(
-                rootArrayName,
-                columnNames,
-                columnTypes,
-                records
-        );
+        return new DataInputResult(rootNode);
     }
 
     private String[] parseLine(String line) {
