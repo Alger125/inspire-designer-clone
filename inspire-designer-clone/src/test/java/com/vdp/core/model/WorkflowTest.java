@@ -137,7 +137,17 @@ class WorkflowTest {
         filter.getCriteria().get(0).setCondition(DataFilterModule.Condition.BIGGER_THAN);
         
         DataSorterModule s1 = new DataSorterModule();
+        s1.getCriteria().clear();
+        s1.getCriteria().add(new DataSorterModule.SortCriterion(
+                "Value", DataSorterModule.Direction.ASCENDING,
+                DataSorterModule.ComparisonType.NUMBER, false,
+                DataSorterModule.NullOrder.LAST));
         DataSorterModule s2 = new DataSorterModule();
+        s2.getCriteria().clear();
+        s2.getCriteria().add(new DataSorterModule.SortCriterion(
+                "Value", DataSorterModule.Direction.ASCENDING,
+                DataSorterModule.ComparisonType.NUMBER, false,
+                DataSorterModule.NullOrder.LAST));
         
         workflow.addModule(gen);
         workflow.addModule(filter);
@@ -158,10 +168,20 @@ class WorkflowTest {
         ProofRunResult result = controller.runProof(workflow, gen.getId());
         
         assertTrue(result.getValidationMessages().isEmpty());
-        // S1 gets Matched: 4, 5, 6 (3 records)
-        assertEquals(3, result.getSnapshots().get(s1.getId()).getRecordCount());
-        // S2 gets Else: 1, 2, 3 (3 records)
-        assertEquals(3, result.getSnapshots().get(s2.getId()).getRecordCount());
+
+        // S1 gets Matched: 4, 5, 6 sorted ASC
+        List<DataNode> matched = result.getSnapshots().get(s1.getId()).getRootNode().getChildren();
+        assertEquals(3, matched.size());
+        assertEquals("4", matched.get(0).getChild("Value").getValue());
+        assertEquals("5", matched.get(1).getChild("Value").getValue());
+        assertEquals("6", matched.get(2).getChild("Value").getValue());
+
+        // S2 gets Else: 1, 2, 3 sorted ASC
+        List<DataNode> elseRecords = result.getSnapshots().get(s2.getId()).getRootNode().getChildren();
+        assertEquals(3, elseRecords.size());
+        assertEquals("1", elseRecords.get(0).getChild("Value").getValue());
+        assertEquals("2", elseRecords.get(1).getChild("Value").getValue());
+        assertEquals("3", elseRecords.get(2).getChild("Value").getValue());
     }
 
     @Test
