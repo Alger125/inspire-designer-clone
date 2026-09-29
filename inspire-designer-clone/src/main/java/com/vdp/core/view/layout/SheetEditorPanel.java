@@ -9,6 +9,10 @@ import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.TitledBorder;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
 
 public class SheetEditorPanel extends JPanel {
     private static final long serialVersionUID = 1L;
@@ -21,28 +25,36 @@ public class SheetEditorPanel extends JPanel {
     
     private LayoutElement selectedElement = null;
     private Point dragStart = null;
-    private Rectangle selectionRect = null; // Rubber band
+    private Rectangle selectionRect = null;
 
-    // Inline editor
     private final JTextArea inlineEditor = new JTextArea();
     private TextElement editingElement = null;
+
+    // UI Panels for Inspire Look & Feel
+    private final JTree structureTree;
+    private final DefaultTreeModel treeModel;
+    private final DefaultMutableTreeNode treeRoot;
+    
+    private final JPanel propertiesPanel;
+    private final JLabel propName = new JLabel("-");
+    private final JLabel propX = new JLabel("-");
+    private final JLabel propY = new JLabel("-");
+    private final JLabel propW = new JLabel("-");
+    private final JLabel propH = new JLabel("-");
 
     public SheetEditorPanel() {
         super(new BorderLayout());
         setBackground(InspireTheme.CANVAS);
 
         pageCanvas = new PageCanvas();
-        pageCanvas.setLayout(null); // For absolute positioning of the inline editor
+        pageCanvas.setLayout(null);
         
         inlineEditor.setVisible(false);
         inlineEditor.setBorder(BorderFactory.createLineBorder(new Color(0, 120, 215)));
         inlineEditor.setLineWrap(true);
         inlineEditor.setWrapStyleWord(true);
         inlineEditor.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent e) {
-                commitInlineEdit();
-            }
+            @Override public void focusLost(FocusEvent e) { commitInlineEdit(); }
         });
         pageCanvas.add(inlineEditor);
         
@@ -50,8 +62,29 @@ public class SheetEditorPanel extends JPanel {
         scroll.setBorder(BorderFactory.createEmptyBorder());
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         scroll.getViewport().setBackground(new Color(230, 230, 230));
+
+        // 1. TOP FORMATTING TOOLBAR
+        JToolBar formatToolbar = new JToolBar();
+        formatToolbar.setFloatable(false);
+        formatToolbar.setBackground(InspireTheme.TOOLBAR);
+        formatToolbar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, InspireTheme.BORDER));
+        formatToolbar.add(new JLabel(" Font: "));
+        JComboBox<String> fontCombo = new JComboBox<>(new String[]{"Arial", "Helvetica", "Times New Roman", "Courier"});
+        fontCombo.setMaximumSize(new Dimension(150, 25));
+        formatToolbar.add(fontCombo);
+        formatToolbar.addSeparator();
+        formatToolbar.add(new JLabel(" Size: "));
+        JSpinner sizeSpinner = new JSpinner(new SpinnerNumberModel(12, 6, 72, 1));
+        sizeSpinner.setMaximumSize(new Dimension(60, 25));
+        formatToolbar.add(sizeSpinner);
+        formatToolbar.addSeparator();
+        formatToolbar.add(InspireTheme.toolbarButton("B", "Bold"));
+        formatToolbar.add(InspireTheme.toolbarButton("I", "Italic"));
+        formatToolbar.add(InspireTheme.toolbarButton("U", "Underline"));
+
+        // 2. LEFT TOOLBAR & STRUCTURE TREE
+        JPanel leftContainer = new JPanel(new BorderLayout());
         
-        // Left toolbar for layout tools
         JToolBar tools = new JToolBar(JToolBar.VERTICAL);
         tools.setFloatable(false);
         tools.setBackground(InspireTheme.PANEL);
@@ -59,7 +92,6 @@ public class SheetEditorPanel extends JPanel {
         
         JButton btnSelect = InspireTheme.toolbarButton("⬈", "Selección");
         JButton btnText = InspireTheme.toolbarButton("T", "Objeto de Texto");
-        
         btnSelect.addActionListener(e -> setTool(Tool.SELECT));
         btnText.addActionListener(e -> setTool(Tool.TEXT));
         
@@ -69,8 +101,46 @@ public class SheetEditorPanel extends JPanel {
         tools.add(InspireTheme.toolbarButton("🖼", "Imagen"));
         tools.add(InspireTheme.toolbarButton("▦", "Tabla"));
 
-        add(tools, BorderLayout.WEST);
+        treeRoot = new DefaultMutableTreeNode("Página 1");
+        treeModel = new DefaultTreeModel(treeRoot);
+        structureTree = new JTree(treeModel);
+        structureTree.setBackground(InspireTheme.PANEL);
+        JScrollPane treeScroll = new JScrollPane(structureTree);
+        treeScroll.setPreferredSize(new Dimension(150, 0));
+        treeScroll.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, InspireTheme.BORDER));
+        
+        leftContainer.add(tools, BorderLayout.WEST);
+        leftContainer.add(treeScroll, BorderLayout.CENTER);
+
+        // 3. RIGHT PROPERTIES PANEL
+        propertiesPanel = new JPanel(new GridLayout(6, 2, 5, 5));
+        propertiesPanel.setBackground(InspireTheme.PANEL);
+        propertiesPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 1, 0, 0, InspireTheme.BORDER),
+                new EmptyBorder(10, 10, 10, 10)
+        ));
+        propertiesPanel.setPreferredSize(new Dimension(200, 0));
+        
+        propertiesPanel.add(new JLabel("Type:")); propertiesPanel.add(propName);
+        propertiesPanel.add(new JLabel("X:")); propertiesPanel.add(propX);
+        propertiesPanel.add(new JLabel("Y:")); propertiesPanel.add(propY);
+        propertiesPanel.add(new JLabel("Width:")); propertiesPanel.add(propW);
+        propertiesPanel.add(new JLabel("Height:")); propertiesPanel.add(propH);
+        
+        JPanel rightContainer = new JPanel(new BorderLayout());
+        rightContainer.setBackground(InspireTheme.PANEL);
+        JLabel propsTitle = new JLabel(" Properties");
+        propsTitle.setFont(InspireTheme.UI_FONT.deriveFont(Font.BOLD));
+        propsTitle.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        rightContainer.add(propsTitle, BorderLayout.NORTH);
+        rightContainer.add(propertiesPanel, BorderLayout.CENTER);
+        rightContainer.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, InspireTheme.BORDER));
+
+        // BUILD MAIN LAYOUT
+        add(formatToolbar, BorderLayout.NORTH);
+        add(leftContainer, BorderLayout.WEST);
         add(scroll, BorderLayout.CENTER);
+        add(rightContainer, BorderLayout.EAST);
         
         setupMouseListeners();
     }
@@ -94,6 +164,36 @@ public class SheetEditorPanel extends JPanel {
         }
     }
 
+    private void updatePropertiesPanel() {
+        if (selectedElement == null) {
+            propName.setText("-");
+            propX.setText("-");
+            propY.setText("-");
+            propW.setText("-");
+            propH.setText("-");
+        } else {
+            propName.setText(selectedElement instanceof TextElement ? "Text Object" : "Object");
+            Rectangle b = selectedElement.getBounds();
+            propX.setText(b.x + " px");
+            propY.setText(b.y + " px");
+            propW.setText(b.width + " px");
+            propH.setText(b.height + " px");
+        }
+    }
+
+    private void updateStructureTree() {
+        treeRoot.removeAllChildren();
+        for (int i = 0; i < elements.size(); i++) {
+            LayoutElement el = elements.get(i);
+            String name = (el instanceof TextElement) ? "Text " + (i+1) : "Element " + (i+1);
+            treeRoot.add(new DefaultMutableTreeNode(name));
+        }
+        treeModel.reload();
+        for (int i = 0; i < structureTree.getRowCount(); i++) {
+            structureTree.expandRow(i);
+        }
+    }
+
     private void setupMouseListeners() {
         MouseAdapter ma = new MouseAdapter() {
             @Override
@@ -104,7 +204,6 @@ public class SheetEditorPanel extends JPanel {
                     selectionRect = new Rectangle(dragStart);
                 } else if (currentTool == Tool.SELECT) {
                     boolean clickedOnElement = false;
-                    // Reverse iterate to click topmost elements
                     for (int i = elements.size() - 1; i >= 0; i--) {
                         LayoutElement el = elements.get(i);
                         if (el.contains(e.getX(), e.getY())) {
@@ -128,19 +227,18 @@ public class SheetEditorPanel extends JPanel {
                 if (dragStart == null) return;
                 
                 if (currentTool == Tool.TEXT || (currentTool == Tool.SELECT && selectedElement == null)) {
-                    // Update rubber band
                     int x = Math.min(dragStart.x, e.getX());
                     int y = Math.min(dragStart.y, e.getY());
                     int width = Math.abs(dragStart.x - e.getX());
                     int height = Math.abs(dragStart.y - e.getY());
                     selectionRect = new Rectangle(x, y, width, height);
                 } else if (currentTool == Tool.SELECT && selectedElement != null) {
-                    // Move element
                     int dx = e.getX() - dragStart.x;
                     int dy = e.getY() - dragStart.y;
                     Rectangle b = selectedElement.getBounds();
                     selectedElement.setLocation(b.x + dx, b.y + dy);
                     dragStart = e.getPoint();
+                    updatePropertiesPanel();
                 }
                 pageCanvas.repaint();
             }
@@ -152,6 +250,7 @@ public class SheetEditorPanel extends JPanel {
                         TextElement textObj = new TextElement("Text", selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
                         elements.add(textObj);
                         selectElement(textObj);
+                        updateStructureTree();
                         setTool(Tool.SELECT);
                     }
                 }
@@ -186,6 +285,7 @@ public class SheetEditorPanel extends JPanel {
         if (el != null) {
             el.setSelected(true);
         }
+        updatePropertiesPanel();
     }
 
     private class PageCanvas extends JPanel {
@@ -231,7 +331,6 @@ public class SheetEditorPanel extends JPanel {
                     g2.fillRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
                 }
             }
-            
             g2.dispose();
         }
     }
