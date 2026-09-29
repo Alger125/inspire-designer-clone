@@ -41,6 +41,7 @@ public final class MainAppWindow extends JFrame {
     private static final long serialVersionUID = 1L;
     private static final String WORKFLOW_CARD  = "WORKFLOW";
     private static final String DATA_PROOF_CARD = "DATA_PROOF";
+    private static final String SHEET_CARD = "SHEET";
 
     // ── Core components ───────────────────────────────────────────────────────
 
@@ -68,6 +69,7 @@ public final class MainAppWindow extends JFrame {
 
         workspaceCards.add(createWorkflowWorkspace(), WORKFLOW_CARD);
         workspaceCards.add(dataProofPanel, DATA_PROOF_CARD);
+        workspaceCards.add(new com.vdp.core.view.layout.SheetEditorPanel(), SHEET_CARD);
 
         JPanel root = new JPanel(new BorderLayout());
         root.add(createToolbar(),   BorderLayout.NORTH);
@@ -232,6 +234,8 @@ public final class MainAppWindow extends JFrame {
                 tab.addActionListener(event -> showWorkflow());
             } else if (label.equals("Proof")) {
                 tab.addActionListener(event -> showDataProof());
+            } else if (label.equals("Sheet")) {
+                tab.addActionListener(event -> showSheet());
             }
             tabs.add(tab);
         }
@@ -394,6 +398,11 @@ public final class MainAppWindow extends JFrame {
         status.setText(hasProof
                 ? "Showing last Data Proof result"
                 : "Run Proof to inspect data");
+    }
+
+    private void showSheet() {
+        workspaceLayout.show(workspaceCards, SHEET_CARD);
+        status.setText("Layout Designer ready");
     }
 
     // ── Module config dispatch ────────────────────────────────────────────────
