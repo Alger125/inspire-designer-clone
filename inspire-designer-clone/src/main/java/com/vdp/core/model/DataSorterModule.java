@@ -151,6 +151,13 @@ public final class DataSorterModule implements InspireModule {
             resolvedTypes.add(resolveComparisonType(crit, sortedList));
         }
 
+        // Pre-validate all NUMBER columns before sorting
+        for (int i = 0; i < criteria.size(); i++) {
+            if (resolvedTypes.get(i) == ComparisonType.NUMBER) {
+                prevalidateNumber(criteria.get(i), sortedList);
+            }
+        }
+
         Comparator<DataNode> compositeComparator = buildCompositeComparator(resolvedTypes);
         sortedList.sort(compositeComparator);
 
@@ -183,6 +190,25 @@ public final class DataSorterModule implements InspireModule {
             }
         }
         return sawNonBlank ? ComparisonType.NUMBER : ComparisonType.TEXT;
+    }
+
+    /**
+     * Validates that every non-blank value in the column is a valid number.
+     * Called before sorting so invalid values are caught even with 1 record,
+     * secondary criteria that never get compared, or zero ties.
+     */
+    private void prevalidateNumber(SortCriterion crit, List<DataNode> records) {
+        for (DataNode record : records) {
+            DataNode child = record.getChild(crit.getFieldName());
+            String val = child != null ? child.getValue() : null;
+            if (val == null || val.isBlank()) continue;
+            if (!isNumeric(val)) {
+                throw new IllegalStateException(
+                    "Field '" + crit.getFieldName()
+                    + "' is configured as NUMBER but contains non-numeric value: '"
+                    + val + "'");
+            }
+        }
     }
 
     private Comparator<DataNode> buildCompositeComparator(List<ComparisonType> resolvedTypes) {

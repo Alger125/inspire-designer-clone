@@ -74,8 +74,11 @@ class WorkflowTest {
         filter.getCriteria().get(0).setCondition(DataFilterModule.Condition.BIGGER_THAN);
         
         DataSorterModule sorter = new DataSorterModule();
-        sorter.setFieldName("Value");
-        sorter.setDirection(DataSorterModule.Direction.DESCENDING);
+        sorter.getCriteria().clear();
+        sorter.getCriteria().add(new DataSorterModule.SortCriterion(
+                "Value", DataSorterModule.Direction.DESCENDING,
+                DataSorterModule.ComparisonType.NUMBER, false,
+                DataSorterModule.NullOrder.LAST));
         
         workflow.addModule(gen);
         workflow.addModule(filter);

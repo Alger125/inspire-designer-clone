@@ -275,6 +275,48 @@ public class DataSorterTest {
         assertTrue(e.getMessage().contains("ABC"));
     }
 
+    // ── NUMBER with single invalid record ─────────────────────────────────────
+
+    @Test
+    void testNumberSingleInvalidRecord() {
+        // Only 1 record — comparator would never be called, but prevalidation catches it
+        Object[][] data = { {"XYZ"} };
+        String[] fields = {"val"};
+
+        DataSorterModule sorter = new DataSorterModule();
+        sorter.getCriteria().clear();
+        sorter.getCriteria().add(new SortCriterion("val", Direction.ASCENDING, ComparisonType.NUMBER, false, NullOrder.LAST));
+
+        ExecutionContext ctx = createTestContext(data, fields);
+        Exception e = assertThrows(IllegalStateException.class, () -> sorter.execute(ctx));
+        assertTrue(e.getMessage().contains("val"));
+        assertTrue(e.getMessage().contains("XYZ"));
+    }
+
+    // ── Secondary NUMBER invalid with unique primary (no ties) ────────────────
+
+    @Test
+    void testSecondaryNumberInvalidNoTies() {
+        // Primary criterion has unique values, so the secondary comparator
+        // would never execute. Pre-validation must still catch the bad value.
+        Object[][] data = {
+            {"A", "10"},
+            {"B", "bad"},
+            {"C", "30"}
+        };
+        String[] fields = {"key", "amount"};
+
+        DataSorterModule sorter = new DataSorterModule();
+        sorter.getCriteria().clear();
+        sorter.getCriteria().add(new SortCriterion("key", Direction.ASCENDING, ComparisonType.TEXT, false, NullOrder.LAST));
+        sorter.getCriteria().add(new SortCriterion("amount", Direction.ASCENDING, ComparisonType.NUMBER, false, NullOrder.LAST));
+
+        ExecutionContext ctx = createTestContext(data, fields);
+        Exception e = assertThrows(IllegalStateException.class, () -> sorter.execute(ctx));
+        assertTrue(e.getMessage().contains("amount"));
+        assertTrue(e.getMessage().contains("bad"));
+    }
+
     // ── Input immutability ────────────────────────────────────────────────────
 
     @Test
@@ -320,7 +362,7 @@ public class DataSorterTest {
         wf.addModule(sorter);
 
         java.nio.file.Path tempFile = java.nio.file.Files.createTempFile("wf", ".json");
-        WorkflowSerializer.save(wf, java.util.Collections.emptyMap(), java.util.Collections.emptyMap(), tempFile);
+        WorkflowSerializer.save(wf, java.util.Map.of(sorter.getId(), "Data Sorter"), java.util.Collections.emptyMap(), tempFile);
 
         WorkflowSerializer.LoadResult loadedRes = WorkflowSerializer.load(tempFile);
         DataSorterModule loaded = (DataSorterModule) loadedRes.workflow().getModules().get(0);
