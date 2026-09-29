@@ -145,7 +145,13 @@ public final class DataSorterModule implements InspireModule {
         // Do not mutate original input
         List<DataNode> sortedList = new ArrayList<>(inputData.getChildren());
 
-        Comparator<DataNode> compositeComparator = buildCompositeComparator();
+        // Resolve AUTO types once per criterion before sorting
+        List<ComparisonType> resolvedTypes = new ArrayList<>();
+        for (SortCriterion crit : criteria) {
+            resolvedTypes.add(resolveComparisonType(crit, sortedList));
+        }
+
+        Comparator<DataNode> compositeComparator = buildCompositeComparator(resolvedTypes);
         sortedList.sort(compositeComparator);
 
         DataNode sortedRoot = DataNode.arrayNode(inputData.getName());
@@ -157,58 +163,81 @@ public final class DataSorterModule implements InspireModule {
         context.setRoot(sortedRoot.deepCopy());
     }
 
-    private Comparator<DataNode> buildCompositeComparator() {
+    /**
+     * Resolves AUTO to NUMBER or TEXT by scanning all non-blank values
+     * in the column. If every non-blank value is a valid BigDecimal,
+     * resolves to NUMBER; otherwise TEXT.
+     */
+    private ComparisonType resolveComparisonType(SortCriterion crit, List<DataNode> records) {
+        if (crit.getComparisonType() != ComparisonType.AUTO) {
+            return crit.getComparisonType();
+        }
+        boolean sawNonBlank = false;
+        for (DataNode record : records) {
+            DataNode child = record.getChild(crit.getFieldName());
+            String val = child != null ? child.getValue() : null;
+            if (val == null || val.isBlank()) continue;
+            sawNonBlank = true;
+            if (!isNumeric(val)) {
+                return ComparisonType.TEXT;
+            }
+        }
+        return sawNonBlank ? ComparisonType.NUMBER : ComparisonType.TEXT;
+    }
+
+    private Comparator<DataNode> buildCompositeComparator(List<ComparisonType> resolvedTypes) {
         if (criteria.isEmpty()) return (n1, n2) -> 0;
-        
-        Comparator<DataNode> composite = buildSingleComparator(criteria.get(0));
+
+        Comparator<DataNode> composite = buildSingleComparator(criteria.get(0), resolvedTypes.get(0));
         for (int i = 1; i < criteria.size(); i++) {
-            composite = composite.thenComparing(buildSingleComparator(criteria.get(i)));
+            composite = composite.thenComparing(buildSingleComparator(criteria.get(i), resolvedTypes.get(i)));
         }
         return composite;
     }
 
-    private Comparator<DataNode> buildSingleComparator(SortCriterion crit) {
-        Comparator<DataNode> comparator = (node1, node2) -> {
+    /**
+     * Builds a comparator for one criterion. NullOrder is applied
+     * independently of Direction: FIRST always puts blanks first,
+     * LAST always puts blanks last, regardless of ASC/DESC.
+     * Direction only inverts the comparison between non-null values.
+     */
+    private Comparator<DataNode> buildSingleComparator(SortCriterion crit, ComparisonType resolvedType) {
+        return (node1, node2) -> {
             DataNode child1 = node1.getChild(crit.getFieldName());
             DataNode child2 = node2.getChild(crit.getFieldName());
-            
+
             String val1 = child1 != null ? child1.getValue() : null;
             String val2 = child2 != null ? child2.getValue() : null;
-            
-            boolean null1 = val1 == null || val1.isEmpty();
-            boolean null2 = val2 == null || val2.isEmpty();
-            
-            if (null1 && null2) return 0;
-            if (null1) return crit.getNullOrder() == NullOrder.FIRST ? -1 : 1;
-            if (null2) return crit.getNullOrder() == NullOrder.FIRST ? 1 : -1;
-            
-            ComparisonType type = crit.getComparisonType();
-            
-            if (type == ComparisonType.AUTO) {
-                if (isNumeric(val1) && isNumeric(val2)) {
-                    type = ComparisonType.NUMBER;
-                } else {
-                    type = ComparisonType.TEXT;
-                }
-            }
-            
-            if (type == ComparisonType.NUMBER) {
+
+            boolean blank1 = val1 == null || val1.isBlank();
+            boolean blank2 = val2 == null || val2.isBlank();
+
+            // NullOrder is independent of Direction
+            if (blank1 && blank2) return 0;
+            if (blank1) return crit.getNullOrder() == NullOrder.FIRST ? -1 : 1;
+            if (blank2) return crit.getNullOrder() == NullOrder.FIRST ? 1 : -1;
+
+            // Compare non-null values
+            int result;
+            if (resolvedType == ComparisonType.NUMBER) {
                 try {
                     BigDecimal d1 = new BigDecimal(val1.trim());
                     BigDecimal d2 = new BigDecimal(val2.trim());
-                    return d1.compareTo(d2);
+                    result = d1.compareTo(d2);
                 } catch (NumberFormatException e) {
-                    // Fallback if parsing fails despite type being NUMBER
-                    return compareText(val1, val2, crit.isIgnoreCase());
+                    throw new IllegalStateException(
+                        "Field '" + crit.getFieldName() + "' is configured as NUMBER but contains non-numeric value: '"
+                        + (isNumeric(val1) ? val2 : val1) + "'");
                 }
             } else {
-                return compareText(val1, val2, crit.isIgnoreCase());
+                result = compareText(val1, val2, crit.isIgnoreCase());
             }
+
+            // Direction only affects non-null comparison
+            return crit.getDirection() == Direction.DESCENDING ? -result : result;
         };
-        
-        return crit.getDirection() == Direction.DESCENDING ? comparator.reversed() : comparator;
     }
-    
+
     private boolean isNumeric(String str) {
         try {
             new BigDecimal(str.trim());
@@ -217,7 +246,7 @@ public final class DataSorterModule implements InspireModule {
             return false;
         }
     }
-    
+
     private int compareText(String val1, String val2, boolean ignoreCase) {
         if (ignoreCase) {
             return String.CASE_INSENSITIVE_ORDER.compare(val1, val2);

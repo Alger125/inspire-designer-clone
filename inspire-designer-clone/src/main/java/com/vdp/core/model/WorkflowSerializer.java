@@ -328,9 +328,9 @@ public final class WorkflowSerializer {
                         if (cn.has("direction")) {
                             try { dir = DataSorterModule.Direction.valueOf(cn.get("direction").asText()); } catch (Exception ignored) {}
                         }
-                        DataSorterModule.ComparisonType type = DataSorterModule.ComparisonType.AUTO;
+                        DataSorterModule.ComparisonType compType = DataSorterModule.ComparisonType.AUTO;
                         if (cn.has("comparisonType")) {
-                            try { type = DataSorterModule.ComparisonType.valueOf(cn.get("comparisonType").asText()); } catch (Exception ignored) {}
+                            try { compType = DataSorterModule.ComparisonType.valueOf(cn.get("comparisonType").asText()); } catch (Exception ignored) {}
                         }
                         DataSorterModule.NullOrder nullOrder = DataSorterModule.NullOrder.LAST;
                         if (cn.has("nullOrder")) {
@@ -340,7 +340,7 @@ public final class WorkflowSerializer {
                         m.getCriteria().add(new DataSorterModule.SortCriterion(
                             cn.has("fieldName") ? cn.get("fieldName").asText() : "",
                             dir,
-                            type,
+                            compType,
                             cn.has("ignoreCase") ? cn.get("ignoreCase").asBoolean() : true,
                             nullOrder
                         ));
