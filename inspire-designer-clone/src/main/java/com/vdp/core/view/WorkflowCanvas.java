@@ -365,9 +365,8 @@ final class WorkflowCanvas extends JPanel {
         Point targetPoint = SwingUtilities.convertPoint(this, point, target);
         Port targetPort = target.getInputPortHit(targetPoint);
         
-        if (targetPort == null && !target.getModule().getInputPorts().isEmpty()) {
-            targetPort = target.getModule().getInputPorts().get(0); // fallback if missed exact port
-        }
+        // Enforce exact port hit instead of falling back
+
 
         if (targetPort != null && connectingSourcePort != null) {
             final Port tp = targetPort; // effective final for lambda

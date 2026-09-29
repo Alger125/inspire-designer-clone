@@ -13,27 +13,29 @@ class WorkflowTest {
     @Test
     void testCyclesAndDuplicateConnectionsPrevented() {
         Workflow workflow = new Workflow("Test");
-        DataGeneratorModule gen1 = new DataGeneratorModule();
-        DataFilterModule filter = new DataFilterModule();
+        DataFilterModule filter1 = new DataFilterModule();
+        DataFilterModule filter2 = new DataFilterModule();
         
-        workflow.addModule(gen1);
-        workflow.addModule(filter);
+        workflow.addModule(filter1);
+        workflow.addModule(filter2);
 
-        Port genOut = gen1.getOutputPorts().get(0);
-        Port filterIn = filter.getInputPorts().get(0);
-        Port filterOut = filter.getOutputPorts().get(0);
-
-        workflow.connect(gen1, genOut, filter, filterIn);
+        Port f1Out = filter1.getOutputPorts().get(0);
+        Port f2In = filter2.getInputPorts().get(0);
         
-        // Duplicate connection
+        workflow.connect(filter1, f1Out, filter2, f2In);
+        
+        // Duplicate connection (exact same source and target)
         Exception e1 = assertThrows(IllegalArgumentException.class, () -> 
-            workflow.connect(gen1, genOut, filter, filterIn)
+            workflow.connect(filter1, f1Out, filter2, f2In)
         );
-        assertEquals("The input port already has a connection", e1.getMessage());
+        assertEquals("This connection already exists", e1.getMessage());
         
         // Prevent cycles
+        Port f2Out = filter2.getOutputPorts().get(0);
+        Port f1In = filter1.getInputPorts().get(0);
+        
         Exception e2 = assertThrows(IllegalArgumentException.class, () -> 
-            workflow.connect(filter, filterOut, gen1, gen1.getOutputPorts().get(0)) // Using any port to test cycle
+            workflow.connect(filter2, f2Out, filter1, f1In)
         );
         assertEquals("The connection would create a cycle", e2.getMessage());
     }
@@ -57,9 +59,9 @@ class WorkflowTest {
         WorkflowController controller = new WorkflowController();
         ProofRunResult result = controller.runProof(workflow, g1.getId());
         
-        assertTrue(result.messages().isEmpty(), "Should not have validation errors");
-        assertEquals(2, result.snapshots().get(f1.getId()).getRecordCount());
-        assertEquals(3, result.snapshots().get(f2.getId()).getRecordCount());
+        assertTrue(result.getValidationMessages().isEmpty(), "Should not have validation errors");
+        assertEquals(2, result.getSnapshots().get(f1.getId()).getRecordCount());
+        assertEquals(3, result.getSnapshots().get(f2.getId()).getRecordCount());
     }
 
     @Test
@@ -85,8 +87,67 @@ class WorkflowTest {
         WorkflowController controller = new WorkflowController();
         ProofRunResult result = controller.runProof(workflow, sorter.getId());
         
-        assertTrue(result.messages().isEmpty());
+        assertTrue(result.getValidationMessages().isEmpty());
         // Records should be 4 and 5
-        assertEquals(2, result.snapshots().get(sorter.getId()).getRecordCount());
+        assertEquals(2, result.getSnapshots().get(sorter.getId()).getRecordCount());
+    }
+    
+    @Test
+    void testDisableElseRemovesConnection() {
+        Workflow workflow = new Workflow("Test");
+        DataFilterModule filter = new DataFilterModule();
+        DataSorterModule sorter = new DataSorterModule();
+        workflow.addModule(filter);
+        workflow.addModule(sorter);
+        
+        Port elsePort = filter.getOutputPorts().stream().filter(p -> p.getId().equals("Else")).findFirst().get();
+        Port sorterIn = sorter.getInputPorts().get(0);
+        
+        workflow.connect(filter, elsePort, sorter, sorterIn);
+        assertEquals(1, workflow.getConnections().size());
+        
+        // Disable Else port
+        filter.setCreateElseOutput(false);
+        // Ensure connection is invalid now
+        assertFalse(workflow.validateConnections().isEmpty());
+        
+        // UI should call this to clean up
+        workflow.cleanInvalidConnections();
+        assertEquals(0, workflow.getConnections().size());
+    }
+
+    @Test
+    void testMatchedAndElseToDifferentModules() {
+        Workflow workflow = new Workflow("Routing");
+        DataFilterModule filter = new DataFilterModule();
+        DataSorterModule s1 = new DataSorterModule();
+        DataSorterModule s2 = new DataSorterModule();
+        
+        workflow.addModule(filter);
+        workflow.addModule(s1);
+        workflow.addModule(s2);
+        
+        Port matchedPort = filter.getOutputPorts().stream().filter(p -> p.getId().equals("Matched")).findFirst().get();
+        Port elsePort = filter.getOutputPorts().stream().filter(p -> p.getId().equals("Else")).findFirst().get();
+        
+        workflow.connect(filter, matchedPort, s1, s1.getInputPorts().get(0));
+        workflow.connect(filter, elsePort, s2, s2.getInputPorts().get(0));
+        
+        assertEquals(2, workflow.getConnections().size());
+        assertTrue(workflow.validateConnections().isEmpty());
+    }
+
+    @Test
+    void testConnectToEmptySpaceThrows() {
+        Workflow workflow = new Workflow("Test");
+        DataFilterModule filter = new DataFilterModule();
+        workflow.addModule(filter);
+        
+        Port fOut = filter.getOutputPorts().get(0);
+        
+        Exception e = assertThrows(NullPointerException.class, () -> 
+            workflow.connect(filter, fOut, null, null)
+        );
+        assertTrue(e.getMessage().contains("target"));
     }
 }

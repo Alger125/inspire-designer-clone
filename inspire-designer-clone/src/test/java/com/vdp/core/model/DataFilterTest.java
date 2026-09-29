@@ -123,4 +123,77 @@ class DataFilterTest {
         assertFalse(loaded.isCreateElseOutput());
         assertTrue(loaded.isInvertCondition());
     }
+    
+    @Test
+    void testLegacyConnectionLoading() throws IOException {
+        String legacyJson = """
+        {
+          "version": 1,
+          "name": "Legacy",
+          "modules": [
+            { "serialId": "m1", "type": "Data Filter", "x": 100, "y": 100, "config": {} },
+            { "serialId": "m2", "type": "Data Filter", "x": 300, "y": 100, "config": {} }
+          ],
+          "connections": [
+            {
+              "sourceModuleId": "m1",
+              "sourcePortName": "DataOutput",
+              "targetModuleId": "m2",
+              "targetPortName": "DataInput"
+            }
+          ]
+        }
+        """;
+        
+        Path tempFile = Files.createTempFile("legacy", ".json");
+        Files.writeString(tempFile, legacyJson);
+        
+        WorkflowSerializer.LoadResult result = WorkflowSerializer.load(tempFile);
+        Workflow wf = result.workflow();
+        
+        assertEquals(1, wf.getConnections().size(), "Connection should have been recovered using fallbacks");
+        WorkflowConnection conn = wf.getConnections().get(0);
+        
+        InspireModule m1 = wf.findModule("m1");
+        InspireModule m2 = wf.findModule("m2");
+        
+        assertNotNull(m1.getOutputPorts().stream().filter(p -> p.getId().equals(conn.sourcePortId())).findFirst().orElse(null));
+        assertEquals("Matched", conn.sourcePortId());
+    }
+
+    @Test
+    void testSerializationOfMatchedAndElseConnections() throws IOException {
+        Workflow workflow = new Workflow("SerTest2");
+        DataFilterModule filter = new DataFilterModule();
+        DataSorterModule s1 = new DataSorterModule();
+        DataSorterModule s2 = new DataSorterModule();
+        
+        workflow.addModule(filter);
+        workflow.addModule(s1);
+        workflow.addModule(s2);
+        
+        Port matchedPort = filter.getOutputPorts().stream().filter(p -> p.getId().equals("Matched")).findFirst().get();
+        Port elsePort = filter.getOutputPorts().stream().filter(p -> p.getId().equals("Else")).findFirst().get();
+        
+        workflow.connect(filter, matchedPort, s1, s1.getInputPorts().get(0));
+        workflow.connect(filter, elsePort, s2, s2.getInputPorts().get(0));
+        
+        Path tempFile = Files.createTempFile("inspire2", ".json");
+        Map<String, String> types = new HashMap<>();
+        types.put(filter.getId(), "Data Filter");
+        types.put(s1.getId(), "Data Sorter");
+        types.put(s2.getId(), "Data Sorter");
+        
+        WorkflowSerializer.save(workflow, types, new HashMap<>(), tempFile);
+        
+        WorkflowSerializer.LoadResult result = WorkflowSerializer.load(tempFile);
+        Workflow wf = result.workflow();
+        
+        assertEquals(2, wf.getConnections().size());
+        boolean hasMatched = wf.getConnections().stream().anyMatch(c -> c.sourcePortId().equals("Matched"));
+        boolean hasElse = wf.getConnections().stream().anyMatch(c -> c.sourcePortId().equals("Else"));
+        
+        assertTrue(hasMatched);
+        assertTrue(hasElse);
+    }
 }

@@ -96,6 +96,46 @@ public class Workflow {
         connections.remove(connection);
     }
 
+    public void cleanInvalidConnections() {
+        connections.removeIf(conn -> {
+            InspireModule src = findModule(conn.sourceModuleId());
+            InspireModule tgt = findModule(conn.targetModuleId());
+            if (src == null || tgt == null) return true;
+            
+            boolean srcPortExists = src.getOutputPorts().stream().anyMatch(p -> p.getId().equals(conn.sourcePortId()));
+            boolean tgtPortExists = tgt.getInputPorts().stream().anyMatch(p -> p.getId().equals(conn.targetPortId()));
+            
+            return !srcPortExists || !tgtPortExists;
+        });
+    }
+
+    public List<String> validateConnections() {
+        List<String> errors = new ArrayList<>();
+        for (WorkflowConnection conn : connections) {
+            InspireModule src = findModule(conn.sourceModuleId());
+            InspireModule tgt = findModule(conn.targetModuleId());
+            if (src == null) {
+                errors.add("Source module not found for connection.");
+                continue;
+            }
+            if (tgt == null) {
+                errors.add("Target module not found for connection.");
+                continue;
+            }
+            
+            boolean srcPortExists = src.getOutputPorts().stream().anyMatch(p -> p.getId().equals(conn.sourcePortId()));
+            boolean tgtPortExists = tgt.getInputPorts().stream().anyMatch(p -> p.getId().equals(conn.targetPortId()));
+            
+            if (!srcPortExists) {
+                errors.add(String.format("Source port '%s' not found on module '%s'.", conn.sourcePortId(), src.getName()));
+            }
+            if (!tgtPortExists) {
+                errors.add(String.format("Target port '%s' not found on module '%s'.", conn.targetPortId(), tgt.getName()));
+            }
+        }
+        return errors;
+    }
+
     public List<WorkflowConnection> getIncomingConnections(String moduleId) {
         return connections.stream()
                 .filter(connection -> connection.targetModuleId().equals(moduleId))

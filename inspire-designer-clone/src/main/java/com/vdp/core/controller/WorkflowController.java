@@ -130,7 +130,9 @@ public final class WorkflowController {
                 
                 // Fallback for modules that still use context.setRoot() which saves to "DATA"
                 if (outData == null && sourceContext.getRoot() != null) {
-                    outData = sourceContext.getRoot();
+                    if ("DataOutput".equals(connection.sourcePortId()) || "DATA".equals(connection.sourcePortId())) {
+                        outData = sourceContext.getRoot();
+                    }
                 }
 
                 if (outData != null) {

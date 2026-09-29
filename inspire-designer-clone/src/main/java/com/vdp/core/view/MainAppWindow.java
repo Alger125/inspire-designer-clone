@@ -440,7 +440,9 @@ public final class MainAppWindow extends JFrame {
                     new DataFilterConfigDialog(this, filter);
             dialog.setVisible(true);
             if (dialog.isAccepted()) {
-                node.repaint();
+                workflowCanvas.getWorkflow().cleanInvalidConnections();
+                node.setSize(WorkflowNode.WIDTH, WorkflowNode.HEIGHT);
+                workflowCanvas.repaint();
                 status.setText("Data Filter configuration updated");
             }
 
