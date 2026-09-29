@@ -11,8 +11,14 @@ public class Port {
         DATA, SHEET
     }
 
+    public Port(String id, String name, PortType type) {
+        this.id = id;
+        this.name = name;
+        this.type = type;
+    }
+
     public Port(String name, PortType type) {
-        this.id = UUID.randomUUID().toString();
+        this.id = name;
         this.name = name;
         this.type = type;
     }

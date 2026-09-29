@@ -41,29 +41,17 @@ final class WorkflowCanvas extends JPanel {
     private static final double ZOOM_MIN  = 0.25;
     private static final double ZOOM_MAX  = 2.0;
 
-    // ── Inner type for rendered connections ───────────────────────────────────
-
-    private static final class Wire {
-        private final WorkflowNode source;
-        private final WorkflowNode target;
-
-        private Wire(WorkflowNode source, WorkflowNode target) {
-            this.source = source;
-            this.target = target;
-        }
-    }
-
     // ── Fields ────────────────────────────────────────────────────────────────
 
     private Workflow workflow;
     private final Consumer<WorkflowNode> moduleEditor;
     private final Consumer<String>       statusWriter;
-    private final List<Wire>             wires       = new ArrayList<>();
     /** Tracks the palette-type string for each module id so we can serialize. */
     private final Map<String, String>    moduleTypes = new LinkedHashMap<>();
 
     private WorkflowNode connectingSource;
     private WorkflowNode selectedNode;
+    private WorkflowConnection selectedConnection;
     private Point        connectionCursor;
     private double       zoomFactor = 1.0;
 
@@ -77,6 +65,78 @@ final class WorkflowCanvas extends JPanel {
         setBackground(InspireTheme.CANVAS);
         setPreferredSize(new Dimension(1100, 720));
         setTransferHandler(createDropHandler());
+        installCanvasInteraction();
+    }
+    
+    private void installCanvasInteraction() {
+        MouseAdapter ma = new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                selectOnly(null); // deselect nodes
+                selectedConnection = findConnectionAt(e.getPoint());
+                repaint();
+                
+                if (SwingUtilities.isRightMouseButton(e) && selectedConnection != null) {
+                    showConnectionMenu(e.getX(), e.getY());
+                }
+            }
+        };
+        addMouseListener(ma);
+    }
+    
+    private WorkflowConnection findConnectionAt(Point p) {
+        for (WorkflowConnection conn : workflow.getConnections()) {
+            WorkflowNode src = findNodeById(conn.sourceModuleId());
+            WorkflowNode tgt = findNodeById(conn.targetModuleId());
+            if (src != null && tgt != null) {
+                Point start = outputPoint(src);
+                Point end = inputPoint(tgt);
+                int midX = start.x + Math.max(20, (end.x - start.x) / 2);
+                
+                // Check distance to the three segments of the wire
+                if (isPointNearLineSegment(p, start.x, start.y, midX, start.y, 5) ||
+                    isPointNearLineSegment(p, midX, start.y, midX, end.y, 5) ||
+                    isPointNearLineSegment(p, midX, end.y, end.x, end.y, 5)) {
+                    return conn;
+                }
+            }
+        }
+        return null;
+    }
+    
+    private boolean isPointNearLineSegment(Point p, int x1, int y1, int x2, int y2, int tolerance) {
+        double dist;
+        if (x1 == x2) {
+            // Vertical line
+            if (p.y >= Math.min(y1, y2) - tolerance && p.y <= Math.max(y1, y2) + tolerance) {
+                dist = Math.abs(p.x - x1);
+            } else {
+                return false;
+            }
+        } else {
+            // Horizontal line
+            if (p.x >= Math.min(x1, x2) - tolerance && p.x <= Math.max(x1, x2) + tolerance) {
+                dist = Math.abs(p.y - y1);
+            } else {
+                return false;
+            }
+        }
+        return dist <= tolerance;
+    }
+    
+    private void showConnectionMenu(int x, int y) {
+        JPopupMenu menu = new JPopupMenu();
+        JMenuItem delete = new JMenuItem("Delete Connection");
+        delete.addActionListener(event -> {
+            if (selectedConnection != null) {
+                workflow.removeConnection(selectedConnection);
+                selectedConnection = null;
+                repaint();
+                statusWriter.accept("Connection deleted");
+            }
+        });
+        menu.add(delete);
+        menu.show(this, x, y);
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -134,14 +194,6 @@ final class WorkflowCanvas extends JPanel {
             installNodeInteraction(node);
             add(node);
             setComponentZOrder(node, 0);
-        }
-
-        for (WorkflowConnection conn : workflow.getConnections()) {
-            WorkflowNode src = findNodeById(conn.sourceModuleId());
-            WorkflowNode tgt = findNodeById(conn.targetModuleId());
-            if (src != null && tgt != null) {
-                wires.add(new Wire(src, tgt));
-            }
         }
 
         revalidate();
@@ -298,8 +350,9 @@ final class WorkflowCanvas extends JPanel {
     private void finishConnection(WorkflowNode source, Point point) {
         WorkflowNode target = findInputNode(point, source);
 
-        boolean alreadyConnected = wires.stream().anyMatch(
-                w -> w.source == source && w.target == target);
+        boolean alreadyConnected = workflow.getConnections().stream().anyMatch(
+                c -> c.sourceModuleId().equals(source.getModule().getId()) && 
+                     c.targetModuleId().equals(target.getModule().getId()));
 
         if (target != null && !alreadyConnected) {
             try {
@@ -309,7 +362,6 @@ final class WorkflowCanvas extends JPanel {
                         target.getModule(),
                         target.getModule().getInputPorts().get(0)
                 );
-                wires.add(new Wire(source, target));
                 statusWriter.accept(source.getModule().getName()
                         + " connected to " + target.getModule().getName());
             } catch (IllegalArgumentException exception) {
@@ -346,6 +398,7 @@ final class WorkflowCanvas extends JPanel {
 
     private void selectOnly(WorkflowNode selected) {
         selectedNode = selected;
+        selectedConnection = null;
         for (Component comp : getComponents()) {
             if (comp instanceof WorkflowNode node) {
                 node.setNodeSelected(node == selected);
@@ -417,7 +470,6 @@ final class WorkflowCanvas extends JPanel {
     }
 
     private void removeNode(WorkflowNode node) {
-        wires.removeIf(w -> w.source == node || w.target == node);
         if (selectedNode == node) selectedNode = null;
         moduleTypes.remove(node.getModule().getId());
         workflow.removeModule(node.getModule());
@@ -437,9 +489,17 @@ final class WorkflowCanvas extends JPanel {
         paintFloatingTools(g2);
 
         g2.setStroke(new BasicStroke(2f));
-        g2.setColor(new Color(165, 165, 165));
-        for (Wire wire : wires) {
-            paintWire(g2, outputPoint(wire.source), inputPoint(wire.target));
+        for (WorkflowConnection conn : workflow.getConnections()) {
+            WorkflowNode src = findNodeById(conn.sourceModuleId());
+            WorkflowNode tgt = findNodeById(conn.targetModuleId());
+            if (src != null && tgt != null) {
+                if (conn == selectedConnection) {
+                    g2.setColor(InspireTheme.LAYOUT); // or InspireTheme.DATA_INPUT
+                } else {
+                    g2.setColor(new Color(165, 165, 165));
+                }
+                paintWire(g2, outputPoint(src), inputPoint(tgt));
+            }
         }
         if (connectingSource != null && connectionCursor != null) {
             g2.setColor(InspireTheme.LAYOUT);
@@ -496,9 +556,9 @@ final class WorkflowCanvas extends JPanel {
     /** Removes all child components and resets internal state (but NOT workflow). */
     private void clearCanvas() {
         removeAll();
-        wires.clear();
         moduleTypes.clear();
         selectedNode    = null;
+        selectedConnection = null;
         connectingSource = null;
         connectionCursor = null;
         zoomFactor      = 1.0;

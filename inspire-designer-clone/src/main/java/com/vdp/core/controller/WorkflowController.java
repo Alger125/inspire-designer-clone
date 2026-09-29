@@ -8,6 +8,7 @@ import com.vdp.core.model.ProofRunResult;
 import com.vdp.core.model.ValidationMessage;
 import com.vdp.core.model.Workflow;
 import com.vdp.core.model.WorkflowConnection;
+import com.vdp.core.model.DataNode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -114,32 +115,34 @@ public final class WorkflowController {
             InspireModule module,
             Map<String, ExecutionContext> moduleOutputs) {
 
-        List<WorkflowConnection> incoming =
-                workflow.getIncomingConnections(module.getId());
+        ExecutionContext inputContext = new ExecutionContext();
+        List<WorkflowConnection> incoming = workflow.getIncomingConnections(module.getId());
 
         if (incoming.isEmpty()) {
-            return new ExecutionContext();
+            return inputContext;
         }
 
-        if (incoming.size() > 1) {
-            throw new IllegalStateException(
-                    "Multiple inputs are not supported by " + module.getName()
-            );
+        for (WorkflowConnection connection : incoming) {
+            ExecutionContext sourceContext = moduleOutputs.get(connection.sourceModuleId());
+            if (sourceContext != null) {
+                // Determine what data the source exposed on this port
+                DataNode outData = sourceContext.getData(connection.sourcePortId());
+                
+                // Fallback for modules that still use context.setRoot() which saves to "DATA"
+                if (outData == null && sourceContext.getRoot() != null) {
+                    outData = sourceContext.getRoot();
+                }
+
+                if (outData != null) {
+                    DataNode copy = outData.deepCopy();
+                    inputContext.setData(connection.targetPortId(), copy);
+                    // Also set as root so un-upgraded modules can still read it using getRoot()
+                    inputContext.setRoot(copy);
+                }
+            }
         }
 
-        WorkflowConnection connection = incoming.get(0);
-
-        ExecutionContext sourceContext =
-                moduleOutputs.get(connection.sourceModuleId());
-
-        if (sourceContext == null) {
-            throw new IllegalStateException(
-                    "The upstream module did not produce data for "
-                    + module.getName()
-            );
-        }
-
-        return sourceContext.copy();
+        return inputContext;
     }
 
     private void validateModules(
