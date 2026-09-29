@@ -1,6 +1,7 @@
 package com.vdp.core.view;
 
 import com.vdp.core.model.InspireModule;
+import com.vdp.core.model.Port;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.FontMetrics;
@@ -9,6 +10,7 @@ import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.RenderingHints;
 import java.awt.geom.Path2D;
+import java.util.List;
 import javax.swing.JComponent;
 
 final class WorkflowNode extends JComponent {
@@ -19,7 +21,7 @@ final class WorkflowNode extends JComponent {
     private final String moduleType;
     private final InspireModule module;
     private final Color accent;
-    private final boolean acceptsInput;
+    private final boolean acceptsInput; // For legacy
     private boolean selected;
 
     WorkflowNode(String moduleType, InspireModule module, Color accent, boolean acceptsInput) {
@@ -33,15 +35,56 @@ final class WorkflowNode extends JComponent {
     }
 
     InspireModule getModule() { return module; }
-    boolean acceptsInput() { return acceptsInput; }
+    boolean acceptsInput() { return !module.getInputPorts().isEmpty(); }
     void setNodeSelected(boolean value) { selected = value; repaint(); }
 
-    Point inputPoint() { return new Point(13, 43); }
-    Point outputPoint() { return new Point(WIDTH - 13, 43); }
+    Point inputPoint(Port port) {
+        List<Port> ports = module.getInputPorts();
+        int idx = ports.indexOf(port);
+        if (idx < 0) idx = 0;
+        return getPortPoint(true, idx, ports.size());
+    }
 
-    boolean isOutputHit(Point point) {
-        Point output = outputPoint();
-        return point.distance(output) <= 10;
+    Point outputPoint(Port port) {
+        List<Port> ports = module.getOutputPorts();
+        int idx = ports.indexOf(port);
+        if (idx < 0) idx = 0;
+        return getPortPoint(false, idx, ports.size());
+    }
+
+    // Default for old methods
+    Point inputPoint() { return getPortPoint(true, 0, Math.max(1, module.getInputPorts().size())); }
+    Point outputPoint() { return getPortPoint(false, 0, Math.max(1, module.getOutputPorts().size())); }
+
+    private Point getPortPoint(boolean isInput, int index, int count) {
+        int x = isInput ? 13 : WIDTH - 13;
+        int yBase = 43;
+        if (count <= 1) return new Point(x, yBase);
+        
+        int spacing = 18;
+        int totalHeight = (count - 1) * spacing;
+        int startY = yBase - (totalHeight / 2);
+        return new Point(x, startY + (index * spacing));
+    }
+
+    Port getOutputPortHit(Point point) {
+        List<Port> ports = module.getOutputPorts();
+        for (int i = 0; i < ports.size(); i++) {
+            if (point.distance(getPortPoint(false, i, ports.size())) <= 10) {
+                return ports.get(i);
+            }
+        }
+        return null;
+    }
+
+    Port getInputPortHit(Point point) {
+        List<Port> ports = module.getInputPorts();
+        for (int i = 0; i < ports.size(); i++) {
+            if (point.distance(getPortPoint(true, i, ports.size())) <= 10) {
+                return ports.get(i);
+            }
+        }
+        return null;
     }
 
     @Override
@@ -68,10 +111,15 @@ final class WorkflowNode extends JComponent {
 
         paintGlyph(g2, iconX, iconY, iconWidth, iconHeight);
 
-        if (acceptsInput) {
-            paintPort(g2, inputPoint());
+        List<Port> inPorts = module.getInputPorts();
+        for (int i = 0; i < inPorts.size(); i++) {
+            paintPort(g2, getPortPoint(true, i, inPorts.size()), inPorts.get(i));
         }
-        paintPort(g2, outputPoint());
+
+        List<Port> outPorts = module.getOutputPorts();
+        for (int i = 0; i < outPorts.size(); i++) {
+            paintPort(g2, getPortPoint(false, i, outPorts.size()), outPorts.get(i));
+        }
 
         g2.setColor(accent);
         g2.fillRect(9, 78, WIDTH - 18, 19);
@@ -89,10 +137,16 @@ final class WorkflowNode extends JComponent {
         g2.dispose();
     }
 
-    private void paintPort(Graphics2D g2, Point point) {
+    private void paintPort(Graphics2D g2, Point point, Port port) {
         g2.setColor(Color.WHITE);
         g2.fillOval(point.x - 5, point.y - 5, 10, 10);
-        g2.setColor(new Color(190, 190, 190));
+        
+        // Use a different color for Matched vs Else if possible
+        Color border = new Color(190, 190, 190);
+        if ("Matched".equals(port.getId())) border = new Color(0, 150, 0); // Green
+        else if ("Else".equals(port.getId())) border = new Color(200, 0, 0); // Red
+        
+        g2.setColor(border);
         g2.drawOval(point.x - 5, point.y - 5, 10, 10);
     }
 
@@ -121,12 +175,9 @@ final class WorkflowNode extends JComponent {
             g2.drawLine(centerX - 5, centerY + 6, centerX + 5, centerY + 6);
             g2.drawLine(centerX, centerY + 6, centerX, centerY + 18);
         } else if (moduleType.equals("Data Sorter")) {
-            // Sorting glyph: three lines of decreasing length (funnel top to bottom)
-            // with a small downward arrow at the bottom
             g2.drawLine(centerX - 14, centerY - 12, centerX + 14, centerY - 12);
             g2.drawLine(centerX - 9,  centerY - 2,  centerX + 9,  centerY - 2);
             g2.drawLine(centerX - 4,  centerY + 8,  centerX + 4,  centerY + 8);
-            // arrow tip
             g2.drawLine(centerX,      centerY + 8,  centerX,      centerY + 18);
             g2.drawLine(centerX - 5,  centerY + 13, centerX,      centerY + 18);
             g2.drawLine(centerX + 5,  centerY + 13, centerX,      centerY + 18);

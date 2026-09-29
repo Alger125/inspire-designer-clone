@@ -15,10 +15,10 @@ public final class DataFilterModule implements InspireModule {
     private final List<Port> inputPorts = List.of(
             new Port("DataInput", "Data Input", Port.PortType.DATA)
     );
-    private final List<Port> outputPorts = List.of(
+    private final List<Port> outputPorts = new ArrayList<>(List.of(
             new Port("Matched", "Matched", Port.PortType.DATA),
             new Port("Else", "Else", Port.PortType.DATA)
-    );
+    ));
 
     public enum Condition {
         NONE("None"),
@@ -60,10 +60,26 @@ public final class DataFilterModule implements InspireModule {
     private final List<FilterCriterion> criteria = new ArrayList<>();
     private boolean invertCondition = false;
     private boolean allowMultipleValues = false;
+    private boolean createElseOutput = true;
 
     public DataFilterModule() {
         // Default single criterion for backward compatibility UI
         criteria.add(new FilterCriterion("Value", Condition.NONE, "", true));
+        updatePorts();
+    }
+
+    public boolean isCreateElseOutput() { return createElseOutput; }
+    public void setCreateElseOutput(boolean createElseOutput) { 
+        this.createElseOutput = createElseOutput; 
+        updatePorts();
+    }
+
+    private void updatePorts() {
+        outputPorts.clear();
+        outputPorts.add(new Port("Matched", "Matched", Port.PortType.DATA));
+        if (createElseOutput) {
+            outputPorts.add(new Port("Else", "Else", Port.PortType.DATA));
+        }
     }
 
     @Override public String getId() { return id; }
@@ -153,13 +169,15 @@ public final class DataFilterModule implements InspireModule {
             boolean finalDecision = invertCondition ? !matchesAll : matchesAll;
             if (finalDecision) {
                 matchedRoot.addChild(record.deepCopy());
-            } else {
+            } else if (createElseOutput) {
                 elseRoot.addChild(record.deepCopy());
             }
         }
         
         context.setData("Matched", matchedRoot);
-        context.setData("Else", elseRoot);
+        if (createElseOutput) {
+            context.setData("Else", elseRoot);
+        }
         
         // For backwards compatibility until all UI is updated, set root to matched
         context.setRoot(matchedRoot.deepCopy());

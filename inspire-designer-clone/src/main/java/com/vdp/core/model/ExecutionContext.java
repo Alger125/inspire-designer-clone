@@ -20,6 +20,15 @@ public class ExecutionContext {
 
     // Por compatibilidad temporal mientras refactorizamos
     public DataNode getRoot() {
+        if (dataByPort.containsKey("DATA")) {
+            return dataByPort.get("DATA");
+        }
+        if (dataByPort.containsKey("Matched")) {
+            return dataByPort.get("Matched");
+        }
+        if (dataByPort.containsKey("DataInput")) {
+            return dataByPort.get("DataInput");
+        }
         return dataByPort.values().stream().findFirst().orElse(null);
     }
 

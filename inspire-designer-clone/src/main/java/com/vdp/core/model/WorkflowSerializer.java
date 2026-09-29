@@ -143,7 +143,17 @@ public final class WorkflowSerializer {
             if (source == null || target == null) continue;
 
             Port srcPort = portByName(source.getOutputPorts(), srcPortName);
+            if (srcPort == null && "DataOutput".equals(srcPortName)) {
+                srcPort = portByName(source.getOutputPorts(), "Matched");
+            }
+            
             Port tgtPort = portByName(target.getInputPorts(), tgtPortName);
+            if (tgtPort == null && "DataInput".equals(tgtPortName)) {
+                tgtPort = portByName(target.getInputPorts(), "Data Input");
+            }
+            if (tgtPort == null && "DataInput".equals(tgtPortName)) {
+                tgtPort = portByName(target.getInputPorts(), "DataInput");
+            }
             if (srcPort == null || tgtPort == null) continue;
 
             try {
@@ -186,11 +196,26 @@ public final class WorkflowSerializer {
             config.put("useFirstRecordAsFieldNames", m.isUseFirstRecordAsFieldNames());
 
         } else if (module instanceof DataFilterModule m) {
-            config.put("fieldName",          m.getFieldName());
-            config.put("condition",          m.getCondition().name());
-            config.put("filterValue",        m.getFilterValue());
             config.put("invertCondition",    m.isInvertCondition());
             config.put("allowMultipleValues", m.isAllowMultipleValues());
+            config.put("createElseOutput", m.isCreateElseOutput());
+            
+            ArrayNode critArray = config.putArray("criteria");
+            for (DataFilterModule.FilterCriterion c : m.getCriteria()) {
+                ObjectNode cn = MAPPER.createObjectNode();
+                cn.put("fieldName", c.getFieldName());
+                cn.put("condition", c.getCondition().name());
+                cn.put("filterValue", c.getFilterValue());
+                cn.put("ignoreCase", c.isIgnoreCase());
+                critArray.add(cn);
+            }
+            // Write legacy fields for older parsers
+            if (!m.getCriteria().isEmpty()) {
+                DataFilterModule.FilterCriterion first = m.getCriteria().get(0);
+                config.put("fieldName", first.getFieldName());
+                config.put("condition", first.getCondition().name());
+                config.put("filterValue", first.getFilterValue());
+            }
 
         } else if (module instanceof DataSorterModule m) {
             config.put("fieldName",  m.getFieldName());
@@ -248,14 +273,34 @@ public final class WorkflowSerializer {
             case "Data Filter" -> {
                 DataFilterModule m = new DataFilterModule();
                 applyName(m::setName, config);
-                if (config.has("fieldName"))    m.setFieldName(config.get("fieldName").asText());
-                if (config.has("condition")) {
-                    try { m.setCondition(DataFilterModule.Condition.valueOf(config.get("condition").asText())); }
-                    catch (IllegalArgumentException ignored) {}
-                }
-                if (config.has("filterValue"))        m.setFilterValue(config.get("filterValue").asText());
                 if (config.has("invertCondition"))    m.setInvertCondition(config.get("invertCondition").asBoolean());
                 if (config.has("allowMultipleValues")) m.setAllowMultipleValues(config.get("allowMultipleValues").asBoolean());
+                if (config.has("createElseOutput")) m.setCreateElseOutput(config.get("createElseOutput").asBoolean());
+                
+                m.getCriteria().clear();
+                if (config.has("criteria") && config.get("criteria").isArray()) {
+                    for (JsonNode cn : config.get("criteria")) {
+                        DataFilterModule.FilterCriterion c = new DataFilterModule.FilterCriterion();
+                        if (cn.has("fieldName")) c.setFieldName(cn.get("fieldName").asText());
+                        if (cn.has("condition")) {
+                            try { c.setCondition(DataFilterModule.Condition.valueOf(cn.get("condition").asText())); }
+                            catch (IllegalArgumentException ignored) {}
+                        }
+                        if (cn.has("filterValue")) c.setFilterValue(cn.get("filterValue").asText());
+                        if (cn.has("ignoreCase")) c.setIgnoreCase(cn.get("ignoreCase").asBoolean());
+                        m.getCriteria().add(c);
+                    }
+                } else {
+                    // Legacy fallback
+                    DataFilterModule.FilterCriterion c = new DataFilterModule.FilterCriterion();
+                    if (config.has("fieldName")) c.setFieldName(config.get("fieldName").asText());
+                    if (config.has("condition")) {
+                        try { c.setCondition(DataFilterModule.Condition.valueOf(config.get("condition").asText())); }
+                        catch (IllegalArgumentException ignored) {}
+                    }
+                    if (config.has("filterValue")) c.setFilterValue(config.get("filterValue").asText());
+                    m.getCriteria().add(c);
+                }
                 yield m;
             }
 

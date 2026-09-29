@@ -2,6 +2,7 @@ package com.vdp.core.view;
 
 import com.vdp.core.model.DataFilterModule;
 import com.vdp.core.model.DataFilterModule.Condition;
+import com.vdp.core.model.DataFilterModule.FilterCriterion;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
@@ -14,7 +15,10 @@ import java.awt.Insets;
 import java.awt.Point;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import java.util.List;
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -23,37 +27,92 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 
-/** Editor for the first Data Filter criterion from manual section 5.13. */
+/** Editor for Data Filter criteria from manual section 5.13. */
 final class DataFilterConfigDialog extends JDialog {
     private static final long serialVersionUID = 1L;
 
     private final DataFilterModule module;
-    private final JTextField fieldName;
-    private final JComboBox<Condition> condition;
-    private final JTextField filterValue;
+    private final List<CriterionRow> rows = new ArrayList<>();
+    private final JPanel criteriaPanel;
+    
     private final JCheckBox multipleValues;
     private final JCheckBox invertCondition;
+    private final JCheckBox createElseOutput;
+    
     private boolean accepted;
     private Point dragOffset;
+
+    private class CriterionRow extends JPanel {
+        JTextField fieldName = new JTextField(12);
+        JComboBox<Condition> condition = new JComboBox<>(Condition.values());
+        JTextField filterValue = new JTextField(12);
+        JCheckBox ignoreCase = new JCheckBox("Ignore case", true);
+        JButton removeBtn = new JButton("X");
+        
+        CriterionRow(FilterCriterion crit) {
+            setLayout(new FlowLayout(FlowLayout.LEFT, 5, 2));
+            setOpaque(false);
+            
+            if (crit != null) {
+                fieldName.setText(crit.getFieldName());
+                condition.setSelectedItem(crit.getCondition());
+                filterValue.setText(crit.getFilterValue());
+                ignoreCase.setSelected(crit.isIgnoreCase());
+            }
+            
+            removeBtn.setPreferredSize(new Dimension(42, 22));
+            removeBtn.setMargin(new Insets(0, 0, 0, 0));
+            removeBtn.addActionListener(e -> {
+                criteriaPanel.remove(this);
+                rows.remove(this);
+                criteriaPanel.revalidate();
+                criteriaPanel.repaint();
+            });
+            
+            add(new JLabel("Field:")); add(fieldName);
+            add(new JLabel("Cond:")); add(condition);
+            add(new JLabel("Value:")); add(filterValue);
+            add(ignoreCase);
+            add(removeBtn);
+        }
+        
+        FilterCriterion toCriterion() {
+            return new FilterCriterion(
+                fieldName.getText().trim(),
+                (Condition) condition.getSelectedItem(),
+                filterValue.getText().trim(),
+                ignoreCase.isSelected()
+            );
+        }
+    }
 
     DataFilterConfigDialog(JFrame owner, DataFilterModule module) {
         super(owner, true);
         this.module = module;
         setUndecorated(true);
-        setSize(430, 290);
-        setMinimumSize(new Dimension(430, 290));
+        setSize(780, 420);
+        setMinimumSize(new Dimension(680, 320));
         setLocationRelativeTo(owner);
 
-        fieldName = new JTextField(module.getFieldName(), 20);
-        condition = new JComboBox<>(Condition.values());
-        condition.setSelectedItem(module.getCondition());
-        filterValue = new JTextField(module.getFilterValue(), 20);
-        multipleValues = new JCheckBox(
-                "Allow multiple values", module.isAllowMultipleValues());
-        invertCondition = new JCheckBox(
-                "Invert condition", module.isInvertCondition());
+        multipleValues = new JCheckBox("Allow multiple values", module.isAllowMultipleValues());
+        multipleValues.setOpaque(false);
+        invertCondition = new JCheckBox("Invert condition", module.isInvertCondition());
+        invertCondition.setOpaque(false);
+        createElseOutput = new JCheckBox("Create else output", module.isCreateElseOutput());
+        createElseOutput.setOpaque(false);
+
+        criteriaPanel = new JPanel();
+        criteriaPanel.setLayout(new BoxLayout(criteriaPanel, BoxLayout.Y_AXIS));
+        criteriaPanel.setBackground(new Color(245, 245, 245));
+        
+        for (FilterCriterion c : module.getCriteria()) {
+            CriterionRow row = new CriterionRow(c);
+            rows.add(row);
+            criteriaPanel.add(row);
+        }
 
         JPanel root = new JPanel(new BorderLayout());
         root.setBorder(BorderFactory.createLineBorder(new Color(55, 55, 55), 2));
@@ -61,8 +120,6 @@ final class DataFilterConfigDialog extends JDialog {
         root.add(createForm(), BorderLayout.CENTER);
         root.add(createButtons(), BorderLayout.SOUTH);
         setContentPane(root);
-        condition.addActionListener(event -> updateEnabledState());
-        updateEnabledState();
     }
 
     boolean isAccepted() { return accepted; }
@@ -89,7 +146,6 @@ final class DataFilterConfigDialog extends JDialog {
         MouseAdapter drag = new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent event) { dragOffset = event.getPoint(); }
-
             @Override
             public void mouseDragged(MouseEvent event) {
                 Point screen = event.getLocationOnScreen();
@@ -102,40 +158,32 @@ final class DataFilterConfigDialog extends JDialog {
     }
 
     private JPanel createForm() {
-        JPanel form = new JPanel(new GridBagLayout());
+        JPanel form = new JPanel(new BorderLayout(10, 10));
         form.setBackground(new Color(232, 232, 232));
-        form.setBorder(BorderFactory.createEmptyBorder(12, 24, 6, 24));
-        GridBagConstraints constraints = new GridBagConstraints();
-        constraints.insets = new Insets(5, 5, 5, 5);
-        constraints.anchor = GridBagConstraints.WEST;
-        addRow(form, constraints, 0, "Field:", fieldName);
-        addRow(form, constraints, 1, "Condition:", condition);
-        addRow(form, constraints, 2, "Value:", filterValue);
-        constraints.gridx = 1;
-        constraints.gridy = 3;
-        form.add(multipleValues, constraints);
-        constraints.gridy = 4;
-        form.add(invertCondition, constraints);
+        form.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        
+        JScrollPane scroll = new JScrollPane(criteriaPanel);
+        scroll.setBorder(BorderFactory.createLineBorder(Color.GRAY));
+        form.add(scroll, BorderLayout.CENTER);
+        
+        JPanel options = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5));
+        options.setOpaque(false);
+        options.add(multipleValues);
+        options.add(invertCondition);
+        options.add(createElseOutput);
+        
+        JButton addBtn = new JButton("+ Add Criterion");
+        addBtn.addActionListener(e -> {
+            CriterionRow row = new CriterionRow(null);
+            rows.add(row);
+            criteriaPanel.add(row);
+            criteriaPanel.revalidate();
+            criteriaPanel.repaint();
+        });
+        options.add(addBtn);
+        
+        form.add(options, BorderLayout.SOUTH);
         return form;
-    }
-
-    private void addRow(
-            JPanel panel,
-            GridBagConstraints constraints,
-            int row,
-            String label,
-            java.awt.Component field) {
-        constraints.gridx = 0;
-        constraints.gridy = row;
-        constraints.weightx = 0;
-        constraints.fill = GridBagConstraints.NONE;
-        JLabel text = new JLabel(label);
-        text.setFont(text.getFont().deriveFont(Font.PLAIN, 12f));
-        panel.add(text, constraints);
-        constraints.gridx = 1;
-        constraints.weightx = 1;
-        constraints.fill = GridBagConstraints.HORIZONTAL;
-        panel.add(field, constraints);
     }
 
     private JPanel createButtons() {
@@ -156,35 +204,28 @@ final class DataFilterConfigDialog extends JDialog {
         return buttons;
     }
 
-    private void updateEnabledState() {
-        Condition selected = (Condition) condition.getSelectedItem();
-        boolean hasCondition = selected != null && selected != Condition.NONE;
-        fieldName.setEnabled(hasCondition);
-        filterValue.setEnabled(hasCondition);
-        multipleValues.setEnabled(selected == Condition.EQUAL_TO
-                || selected == Condition.CONTAINS
-                || selected == Condition.BEGINS_WITH);
-    }
-
     private void accept() {
-        String oldField = module.getFieldName();
-        Condition oldCondition = module.getCondition();
-        String oldValue = module.getFilterValue();
+        List<FilterCriterion> oldCriteria = new ArrayList<>(module.getCriteria());
         boolean oldMultiple = module.isAllowMultipleValues();
         boolean oldInvert = module.isInvertCondition();
+        boolean oldCreateElse = module.isCreateElseOutput();
 
-        module.setFieldName(fieldName.getText().trim());
-        module.setCondition((Condition) condition.getSelectedItem());
-        module.setFilterValue(filterValue.getText().trim());
+        module.getCriteria().clear();
+        for (CriterionRow row : rows) {
+            module.getCriteria().add(row.toCriterion());
+        }
+        
         module.setAllowMultipleValues(multipleValues.isSelected());
         module.setInvertCondition(invertCondition.isSelected());
-        java.util.List<String> errors = module.validate();
+        module.setCreateElseOutput(createElseOutput.isSelected());
+        
+        List<String> errors = module.validate();
         if (!errors.isEmpty()) {
-            module.setFieldName(oldField);
-            module.setCondition(oldCondition);
-            module.setFilterValue(oldValue);
+            module.getCriteria().clear();
+            module.getCriteria().addAll(oldCriteria);
             module.setAllowMultipleValues(oldMultiple);
             module.setInvertCondition(oldInvert);
+            module.setCreateElseOutput(oldCreateElse);
             JOptionPane.showMessageDialog(
                     this, String.join("\n", errors), "Data Filter", JOptionPane.ERROR_MESSAGE);
             return;

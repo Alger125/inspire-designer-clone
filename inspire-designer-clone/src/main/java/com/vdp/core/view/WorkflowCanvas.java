@@ -33,6 +33,7 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
 import javax.swing.TransferHandler;
+import com.vdp.core.model.Port;
 
 final class WorkflowCanvas extends JPanel {
     private static final long serialVersionUID = 1L;
@@ -50,6 +51,7 @@ final class WorkflowCanvas extends JPanel {
     private final Map<String, String>    moduleTypes = new LinkedHashMap<>();
 
     private WorkflowNode connectingSource;
+    private Port connectingSourcePort;
     private WorkflowNode selectedNode;
     private WorkflowConnection selectedConnection;
     private Point        connectionCursor;
@@ -89,8 +91,8 @@ final class WorkflowCanvas extends JPanel {
             WorkflowNode src = findNodeById(conn.sourceModuleId());
             WorkflowNode tgt = findNodeById(conn.targetModuleId());
             if (src != null && tgt != null) {
-                Point start = outputPoint(src);
-                Point end = inputPoint(tgt);
+                Point start = getPortPoint(src, conn.sourcePortId(), false);
+                Point end = getPortPoint(tgt, conn.targetPortId(), true);
                 int midX = start.x + Math.max(20, (end.x - start.x) / 2);
                 
                 // Check distance to the three segments of the wire
@@ -302,8 +304,10 @@ final class WorkflowCanvas extends JPanel {
                     showNodeMenu(node, event.getX(), event.getY());
                     return;
                 }
-                if (node.isOutputHit(event.getPoint())) {
+                Port hitPort = node.getOutputPortHit(event.getPoint());
+                if (hitPort != null) {
                     connectingSource = node;
+                    connectingSourcePort = hitPort;
                     connectionCursor = SwingUtilities.convertPoint(
                             node, event.getPoint(), WorkflowCanvas.this);
                 } else {
@@ -350,26 +354,46 @@ final class WorkflowCanvas extends JPanel {
     private void finishConnection(WorkflowNode source, Point point) {
         WorkflowNode target = findInputNode(point, source);
 
-        boolean alreadyConnected = workflow.getConnections().stream().anyMatch(
-                c -> c.sourceModuleId().equals(source.getModule().getId()) && 
-                     c.targetModuleId().equals(target.getModule().getId()));
+        if (target == null) {
+            connectingSource = null;
+            connectingSourcePort = null;
+            connectionCursor = null;
+            repaint();
+            return;
+        }
 
-        if (target != null && !alreadyConnected) {
-            try {
-                workflow.connect(
-                        source.getModule(),
-                        source.getModule().getOutputPorts().get(0),
-                        target.getModule(),
-                        target.getModule().getInputPorts().get(0)
-                );
-                statusWriter.accept(source.getModule().getName()
-                        + " connected to " + target.getModule().getName());
-            } catch (IllegalArgumentException exception) {
-                statusWriter.accept("Connection rejected: " + exception.getMessage());
+        Point targetPoint = SwingUtilities.convertPoint(this, point, target);
+        Port targetPort = target.getInputPortHit(targetPoint);
+        
+        if (targetPort == null && !target.getModule().getInputPorts().isEmpty()) {
+            targetPort = target.getModule().getInputPorts().get(0); // fallback if missed exact port
+        }
+
+        if (targetPort != null && connectingSourcePort != null) {
+            final Port tp = targetPort; // effective final for lambda
+            boolean alreadyConnected = workflow.getConnections().stream().anyMatch(
+                    c -> c.sourceModuleId().equals(source.getModule().getId()) && 
+                         c.targetModuleId().equals(target.getModule().getId()) &&
+                         c.targetPortId().equals(tp.getId()));
+
+            if (!alreadyConnected) {
+                try {
+                    workflow.connect(
+                            source.getModule(),
+                            connectingSourcePort,
+                            target.getModule(),
+                            targetPort
+                    );
+                    statusWriter.accept(source.getModule().getName()
+                            + " connected to " + target.getModule().getName());
+                } catch (IllegalArgumentException exception) {
+                    statusWriter.accept("Connection rejected: " + exception.getMessage());
+                }
             }
         }
 
         connectingSource = null;
+        connectingSourcePort = null;
         connectionCursor = null;
         repaint();
     }
@@ -498,14 +522,29 @@ final class WorkflowCanvas extends JPanel {
                 } else {
                     g2.setColor(new Color(165, 165, 165));
                 }
-                paintWire(g2, outputPoint(src), inputPoint(tgt));
+                Point p1 = getPortPoint(src, conn.sourcePortId(), false);
+                Point p2 = getPortPoint(tgt, conn.targetPortId(), true);
+                paintWire(g2, p1, p2);
             }
         }
         if (connectingSource != null && connectionCursor != null) {
             g2.setColor(InspireTheme.LAYOUT);
-            paintWire(g2, outputPoint(connectingSource), connectionCursor);
+            Point p1 = getPortPoint(connectingSource, connectingSourcePort.getId(), false);
+            paintWire(g2, p1, connectionCursor);
         }
         g2.dispose();
+    }
+
+    private Point getPortPoint(WorkflowNode node, String portId, boolean isInput) {
+        java.util.List<Port> ports = isInput ? node.getModule().getInputPorts() : node.getModule().getOutputPorts();
+        for (Port p : ports) {
+            if (p.getId().equals(portId)) {
+                Point pt = isInput ? node.inputPoint(p) : node.outputPoint(p);
+                return SwingUtilities.convertPoint(node, pt, this);
+            }
+        }
+        Point pt = isInput ? node.inputPoint() : node.outputPoint();
+        return SwingUtilities.convertPoint(node, pt, this);
     }
 
     private void paintWorkflowInfo(Graphics2D g2) {
@@ -534,15 +573,7 @@ final class WorkflowCanvas extends JPanel {
         g2.drawString("↤  ↔  ↦", right + 81, 56);
     }
 
-    private Point outputPoint(WorkflowNode node) {
-        Point local = node.outputPoint();
-        return new Point(node.getX() + local.x, node.getY() + local.y);
-    }
 
-    private Point inputPoint(WorkflowNode node) {
-        Point local = node.inputPoint();
-        return new Point(node.getX() + local.x, node.getY() + local.y);
-    }
 
     private void paintWire(Graphics2D g2, Point start, Point end) {
         int midX = start.x + Math.max(20, (end.x - start.x) / 2);

@@ -81,6 +81,7 @@ public class Workflow {
             throw new IllegalArgumentException("This connection already exists");
         }
         if (connections.stream().anyMatch(existing ->
+                existing.targetModuleId().equals(target.getId()) &&
                 existing.targetPortId().equals(targetPort.getId()))) {
             throw new IllegalArgumentException("The input port already has a connection");
         }
