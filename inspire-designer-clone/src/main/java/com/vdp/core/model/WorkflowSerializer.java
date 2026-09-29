@@ -218,8 +218,21 @@ public final class WorkflowSerializer {
             }
 
         } else if (module instanceof DataSorterModule m) {
-            config.put("fieldName",  m.getFieldName());
-            config.put("direction",  m.getDirection().name());
+            ArrayNode critArray = config.putArray("criteria");
+            for (DataSorterModule.SortCriterion c : m.getCriteria()) {
+                ObjectNode cn = MAPPER.createObjectNode();
+                cn.put("fieldName", c.getFieldName());
+                cn.put("direction", c.getDirection().name());
+                cn.put("comparisonType", c.getComparisonType().name());
+                cn.put("ignoreCase", c.isIgnoreCase());
+                cn.put("nullOrder", c.getNullOrder().name());
+                critArray.add(cn);
+            }
+            if (!m.getCriteria().isEmpty()) {
+                DataSorterModule.SortCriterion first = m.getCriteria().get(0);
+                config.put("fieldName", first.getFieldName());
+                config.put("direction", first.getDirection().name());
+            }
         }
 
         return config;
@@ -307,10 +320,44 @@ public final class WorkflowSerializer {
             case "Data Sorter" -> {
                 DataSorterModule m = new DataSorterModule();
                 applyName(m::setName, config);
-                if (config.has("fieldName")) m.setFieldName(config.get("fieldName").asText());
-                if (config.has("direction")) {
-                    try { m.setDirection(DataSorterModule.Direction.valueOf(config.get("direction").asText())); }
-                    catch (IllegalArgumentException ignored) {}
+                m.getCriteria().clear();
+                
+                if (config.has("criteria") && config.get("criteria").isArray()) {
+                    for (JsonNode cn : config.get("criteria")) {
+                        DataSorterModule.Direction dir = DataSorterModule.Direction.ASCENDING;
+                        if (cn.has("direction")) {
+                            try { dir = DataSorterModule.Direction.valueOf(cn.get("direction").asText()); } catch (Exception ignored) {}
+                        }
+                        DataSorterModule.ComparisonType type = DataSorterModule.ComparisonType.AUTO;
+                        if (cn.has("comparisonType")) {
+                            try { type = DataSorterModule.ComparisonType.valueOf(cn.get("comparisonType").asText()); } catch (Exception ignored) {}
+                        }
+                        DataSorterModule.NullOrder nullOrder = DataSorterModule.NullOrder.LAST;
+                        if (cn.has("nullOrder")) {
+                            try { nullOrder = DataSorterModule.NullOrder.valueOf(cn.get("nullOrder").asText()); } catch (Exception ignored) {}
+                        }
+                        
+                        m.getCriteria().add(new DataSorterModule.SortCriterion(
+                            cn.has("fieldName") ? cn.get("fieldName").asText() : "",
+                            dir,
+                            type,
+                            cn.has("ignoreCase") ? cn.get("ignoreCase").asBoolean() : true,
+                            nullOrder
+                        ));
+                    }
+                } else {
+                    DataSorterModule.Direction dir = DataSorterModule.Direction.ASCENDING;
+                    if (config.has("direction")) {
+                        try { dir = DataSorterModule.Direction.valueOf(config.get("direction").asText()); }
+                        catch (IllegalArgumentException ignored) {}
+                    }
+                    m.getCriteria().add(new DataSorterModule.SortCriterion(
+                        config.has("fieldName") ? config.get("fieldName").asText() : "",
+                        dir,
+                        DataSorterModule.ComparisonType.AUTO,
+                        true,
+                        DataSorterModule.NullOrder.LAST
+                    ));
                 }
                 yield m;
             }

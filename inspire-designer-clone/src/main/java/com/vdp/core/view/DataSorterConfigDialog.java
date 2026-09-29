@@ -1,27 +1,32 @@
 package com.vdp.core.view;
 
 import com.vdp.core.model.DataSorterModule;
+import com.vdp.core.model.DataSorterModule.ComparisonType;
 import com.vdp.core.model.DataSorterModule.Direction;
+import com.vdp.core.model.DataSorterModule.NullOrder;
+import com.vdp.core.model.DataSorterModule.SortCriterion;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Point;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import java.util.List;
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 
 /** Editor for the Data Sorter configuration from manual section 5.14. */
@@ -29,22 +34,103 @@ final class DataSorterConfigDialog extends JDialog {
     private static final long serialVersionUID = 1L;
 
     private final DataSorterModule module;
-    private final JTextField fieldName;
-    private final JComboBox<Direction> direction;
+    private final List<CriterionRow> rows = new ArrayList<>();
+    private final JPanel criteriaPanel;
+    
     private boolean accepted;
     private Point dragOffset;
+
+    private class CriterionRow extends JPanel {
+        JTextField fieldName = new JTextField(10);
+        JComboBox<Direction> direction = new JComboBox<>(Direction.values());
+        JComboBox<ComparisonType> type = new JComboBox<>(ComparisonType.values());
+        JCheckBox ignoreCase = new JCheckBox("Ignore case");
+        JComboBox<NullOrder> nullOrder = new JComboBox<>(NullOrder.values());
+        
+        JButton upBtn = new JButton("↑");
+        JButton downBtn = new JButton("↓");
+        JButton removeBtn = new JButton("X");
+        
+        CriterionRow(SortCriterion crit) {
+            setLayout(new FlowLayout(FlowLayout.LEFT, 5, 2));
+            setOpaque(false);
+            
+            if (crit != null) {
+                fieldName.setText(crit.getFieldName());
+                direction.setSelectedItem(crit.getDirection());
+                type.setSelectedItem(crit.getComparisonType());
+                ignoreCase.setSelected(crit.isIgnoreCase());
+                nullOrder.setSelectedItem(crit.getNullOrder());
+            } else {
+                ignoreCase.setSelected(true);
+                nullOrder.setSelectedItem(NullOrder.LAST);
+            }
+            
+            upBtn.setMargin(new Insets(0, 2, 0, 2));
+            downBtn.setMargin(new Insets(0, 2, 0, 2));
+            removeBtn.setMargin(new Insets(0, 2, 0, 2));
+            
+            upBtn.addActionListener(e -> moveRow(-1));
+            downBtn.addActionListener(e -> moveRow(1));
+            removeBtn.addActionListener(e -> removeRow());
+            
+            add(new JLabel("Field:")); add(fieldName);
+            add(new JLabel("Dir:")); add(direction);
+            add(new JLabel("Type:")); add(type);
+            add(ignoreCase);
+            add(new JLabel("Nulls:")); add(nullOrder);
+            add(upBtn); add(downBtn); add(removeBtn);
+        }
+        
+        private void moveRow(int offset) {
+            int idx = rows.indexOf(this);
+            if (idx < 0) return;
+            int newIdx = idx + offset;
+            if (newIdx >= 0 && newIdx < rows.size()) {
+                rows.remove(idx);
+                rows.add(newIdx, this);
+                criteriaPanel.removeAll();
+                for (CriterionRow r : rows) criteriaPanel.add(r);
+                criteriaPanel.revalidate();
+                criteriaPanel.repaint();
+            }
+        }
+        
+        private void removeRow() {
+            criteriaPanel.remove(this);
+            rows.remove(this);
+            criteriaPanel.revalidate();
+            criteriaPanel.repaint();
+        }
+        
+        SortCriterion toCriterion() {
+            return new SortCriterion(
+                fieldName.getText().trim(),
+                (Direction) direction.getSelectedItem(),
+                (ComparisonType) type.getSelectedItem(),
+                ignoreCase.isSelected(),
+                (NullOrder) nullOrder.getSelectedItem()
+            );
+        }
+    }
 
     DataSorterConfigDialog(JFrame owner, DataSorterModule module) {
         super(owner, true);
         this.module = module;
         setUndecorated(true);
-        setSize(380, 195);
-        setMinimumSize(new Dimension(380, 195));
+        setSize(750, 380);
+        setMinimumSize(new Dimension(750, 320));
         setLocationRelativeTo(owner);
 
-        fieldName = new JTextField(module.getFieldName(), 20);
-        direction = new JComboBox<>(Direction.values());
-        direction.setSelectedItem(module.getDirection());
+        criteriaPanel = new JPanel();
+        criteriaPanel.setLayout(new BoxLayout(criteriaPanel, BoxLayout.Y_AXIS));
+        criteriaPanel.setBackground(new Color(245, 245, 245));
+        
+        for (SortCriterion c : module.getCriteria()) {
+            CriterionRow row = new CriterionRow(c);
+            rows.add(row);
+            criteriaPanel.add(row);
+        }
 
         JPanel root = new JPanel(new BorderLayout());
         root.setBorder(BorderFactory.createLineBorder(new Color(55, 55, 55), 2));
@@ -61,11 +147,11 @@ final class DataSorterConfigDialog extends JDialog {
         titleBar.setBackground(new Color(58, 58, 58));
         titleBar.setBorder(BorderFactory.createEmptyBorder(5, 9, 5, 7));
 
-        JLabel title = new JLabel("◆  Data Sorter - " + module.getName());
+        JLabel title = new JLabel("🔤  Data Sorter - " + module.getName());
         title.setForeground(new Color(225, 225, 225));
         titleBar.add(title, BorderLayout.WEST);
 
-        JLabel actions = new JLabel("?     —     □     ×");
+        JLabel actions = new JLabel("?     🗕     🗖     ✕");
         actions.setForeground(new Color(225, 225, 225));
         actions.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         actions.addMouseListener(new MouseAdapter() {
@@ -92,34 +178,29 @@ final class DataSorterConfigDialog extends JDialog {
     }
 
     private JPanel createForm() {
-        JPanel form = new JPanel(new GridBagLayout());
+        JPanel form = new JPanel(new BorderLayout(10, 10));
         form.setBackground(new Color(232, 232, 232));
-        form.setBorder(BorderFactory.createEmptyBorder(12, 24, 6, 24));
-        GridBagConstraints constraints = new GridBagConstraints();
-        constraints.insets = new Insets(5, 5, 5, 5);
-        constraints.anchor = GridBagConstraints.WEST;
-        addRow(form, constraints, 0, "Sort field:", fieldName);
-        addRow(form, constraints, 1, "Direction:", direction);
+        form.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        
+        JScrollPane scroll = new JScrollPane(criteriaPanel);
+        scroll.setBorder(BorderFactory.createLineBorder(Color.GRAY));
+        form.add(scroll, BorderLayout.CENTER);
+        
+        JPanel options = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5));
+        options.setOpaque(false);
+        
+        JButton addBtn = new JButton("+ Add Sort Criterion");
+        addBtn.addActionListener(e -> {
+            CriterionRow row = new CriterionRow(null);
+            rows.add(row);
+            criteriaPanel.add(row);
+            criteriaPanel.revalidate();
+            criteriaPanel.repaint();
+        });
+        options.add(addBtn);
+        
+        form.add(options, BorderLayout.SOUTH);
         return form;
-    }
-
-    private void addRow(
-            JPanel panel,
-            GridBagConstraints constraints,
-            int row,
-            String label,
-            java.awt.Component field) {
-        constraints.gridx = 0;
-        constraints.gridy = row;
-        constraints.weightx = 0;
-        constraints.fill = GridBagConstraints.NONE;
-        JLabel text = new JLabel(label);
-        text.setFont(text.getFont().deriveFont(Font.PLAIN, 12f));
-        panel.add(text, constraints);
-        constraints.gridx = 1;
-        constraints.weightx = 1;
-        constraints.fill = GridBagConstraints.HORIZONTAL;
-        panel.add(field, constraints);
     }
 
     private JPanel createButtons() {
@@ -141,16 +222,17 @@ final class DataSorterConfigDialog extends JDialog {
     }
 
     private void accept() {
-        String oldField = module.getFieldName();
-        Direction oldDirection = module.getDirection();
+        List<SortCriterion> oldCriteria = new ArrayList<>(module.getCriteria());
 
-        module.setFieldName(fieldName.getText().trim());
-        module.setDirection((Direction) direction.getSelectedItem());
+        module.getCriteria().clear();
+        for (CriterionRow row : rows) {
+            module.getCriteria().add(row.toCriterion());
+        }
 
-        java.util.List<String> errors = module.validate();
+        List<String> errors = module.validate();
         if (!errors.isEmpty()) {
-            module.setFieldName(oldField);
-            module.setDirection(oldDirection);
+            module.getCriteria().clear();
+            module.getCriteria().addAll(oldCriteria);
             JOptionPane.showMessageDialog(
                     this, String.join("\n", errors), "Data Sorter", JOptionPane.ERROR_MESSAGE);
             return;
