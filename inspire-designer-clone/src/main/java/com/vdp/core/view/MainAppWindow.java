@@ -215,15 +215,15 @@ public final class MainAppWindow extends JFrame {
 
         // Standard Toolbar
         JToolBar standard = buildBaseToolbar("Standard");
-        JButton btnNew  = InspireTheme.toolbarButton("☐",  "New Workflow");
-        JButton btnOpen = InspireTheme.toolbarButton("↗",  "Open Workflow");
-        JButton btnSave = InspireTheme.toolbarButton("▣",  "Save Workflow");
+        JButton btnNew  = InspireTheme.toolbarButton("☐",  "New Workflow", "icon_new");
+        JButton btnOpen = InspireTheme.toolbarButton("↗",  "Open Workflow", "icon_open");
+        JButton btnSave = InspireTheme.toolbarButton("▣",  "Save Workflow", "icon_save");
         btnNew.addActionListener(event  -> handleNew());
         btnOpen.addActionListener(event -> handleOpen());
         btnSave.addActionListener(event -> handleSave());
         standard.add(btnNew); standard.add(btnOpen); standard.add(btnSave);
         standard.addSeparator();
-        standard.add(InspireTheme.toolbarButton("🖨", "Print Workflow"));
+        standard.add(InspireTheme.toolbarButton("🖨", "Print Workflow", "icon_print"));
         standard.addSeparator();
         standard.add(InspireTheme.toolbarButton("✂", "Cut"));
         standard.add(InspireTheme.toolbarButton("⧉", "Copy"));
@@ -235,10 +235,10 @@ public final class MainAppWindow extends JFrame {
         standard.add(InspireTheme.toolbarButton("🔍", "Find"));
         
         // Extended standard tools (Validate, Run) to keep functionality accessible
-        JButton validate = InspireTheme.toolbarButton("✓", "Validate Workflow");
+        JButton validate = InspireTheme.toolbarButton("✓", "Validate Workflow", "icon_validate");
         validate.addActionListener(event -> validateWorkflow());
         standard.add(validate);
-        JButton runProof = InspireTheme.toolbarButton("▶", "Run Proof");
+        JButton runProof = InspireTheme.toolbarButton("▶", "Run Proof", "icon_run");
         runProof.addActionListener(event -> runProof());
         standard.add(runProof);
 

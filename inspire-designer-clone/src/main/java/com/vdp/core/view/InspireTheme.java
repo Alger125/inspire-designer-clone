@@ -4,6 +4,10 @@ import java.awt.Color;
 import java.awt.Font;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.ImageIcon;
+import java.awt.Image;
+import java.net.URL;
+import java.awt.Insets;
 import javax.swing.UIManager;
 
 public final class InspireTheme {
@@ -28,6 +32,45 @@ public final class InspireTheme {
         UIManager.put("TextField.font", UI_FONT);
         UIManager.put("Spinner.font", UI_FONT);
         UIManager.put("ToolTip.font", UI_FONT);
+    }
+
+
+    public static ImageIcon getIcon(String name, int size) {
+        URL url = InspireTheme.class.getResource("/icons/" + name + ".png");
+        if (url != null) {
+            ImageIcon icon = new ImageIcon(url);
+            Image img = icon.getImage().getScaledInstance(size, size, Image.SCALE_SMOOTH);
+            return new ImageIcon(img);
+        }
+        return null; // Fallback to text/emoji if missing
+    }
+
+    public static JButton toolbarButton(String text, String tooltip, String iconName) {
+        JButton button = new JButton();
+        ImageIcon icon = getIcon(iconName, 16);
+        if (icon != null) {
+            button.setIcon(icon);
+        } else {
+            button.setText(text);
+            button.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 14));
+        }
+        button.setToolTipText(tooltip);
+        button.setFocusPainted(false);
+        button.setMargin(new Insets(2, 4, 2, 4));
+        button.setBackground(TOOLBAR);
+        button.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
+        
+        button.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                button.setBackground(new Color(220, 225, 235));
+                button.setBorder(BorderFactory.createLineBorder(new Color(160, 180, 200)));
+            }
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                button.setBackground(TOOLBAR);
+                button.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
+            }
+        });
+        return button;
     }
 
     public static JButton toolbarButton(String text, String tooltip) {
