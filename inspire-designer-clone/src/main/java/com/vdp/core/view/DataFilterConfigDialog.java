@@ -3,15 +3,14 @@ package com.vdp.core.view;
 import com.vdp.core.model.DataFilterModule;
 import com.vdp.core.model.DataFilterModule.Condition;
 import com.vdp.core.model.DataFilterModule.FilterCriterion;
+import com.vdp.core.model.DataNode;
+import com.vdp.core.model.Workflow;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
 import java.awt.Point;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -28,13 +27,20 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
 import javax.swing.JTextField;
+import javax.swing.JTree;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeCellRenderer;
+import javax.swing.tree.DefaultTreeModel;
 
 /** Editor for Data Filter criteria from manual section 5.13. */
 final class DataFilterConfigDialog extends JDialog {
     private static final long serialVersionUID = 1L;
 
     private final DataFilterModule module;
+    private final Workflow workflow;
+    
     private final List<CriterionRow> rows = new ArrayList<>();
     private final JPanel criteriaPanel;
     
@@ -42,11 +48,16 @@ final class DataFilterConfigDialog extends JDialog {
     private final JCheckBox invertCondition;
     private final JCheckBox createElseOutput;
     
+    private final JTree structureTree;
+    private final List<String> availableFields = new ArrayList<>();
+
     private boolean accepted;
     private Point dragOffset;
 
     private class CriterionRow extends JPanel {
-        JTextField fieldName = new JTextField(12);
+        private static final long serialVersionUID = 1L;
+
+        JComboBox<String> fieldName;
         JComboBox<Condition> condition = new JComboBox<>(Condition.values());
         JTextField filterValue = new JTextField(12);
         JCheckBox ignoreCase = new JCheckBox("Ignore case", true);
@@ -56,15 +67,18 @@ final class DataFilterConfigDialog extends JDialog {
             setLayout(new FlowLayout(FlowLayout.LEFT, 5, 2));
             setOpaque(false);
             
+            fieldName = new JComboBox<>(availableFields.toArray(String[]::new));
+            fieldName.setEditable(true);
+            fieldName.setPreferredSize(new Dimension(120, 24));
+            
             if (crit != null) {
-                fieldName.setText(crit.getFieldName());
+                fieldName.setSelectedItem(crit.getFieldName());
                 condition.setSelectedItem(crit.getCondition());
                 filterValue.setText(crit.getFilterValue());
                 ignoreCase.setSelected(crit.isIgnoreCase());
             }
             
-            removeBtn.setPreferredSize(new Dimension(42, 22));
-            removeBtn.setMargin(new Insets(0, 0, 0, 0));
+            removeBtn.setPreferredSize(new Dimension(40, 24));
             removeBtn.addActionListener(e -> {
                 criteriaPanel.remove(this);
                 rows.remove(this);
@@ -80,8 +94,9 @@ final class DataFilterConfigDialog extends JDialog {
         }
         
         FilterCriterion toCriterion() {
+            Object selectedField = fieldName.getSelectedItem();
             return new FilterCriterion(
-                fieldName.getText().trim(),
+                selectedField == null ? "" : selectedField.toString().trim(),
                 (Condition) condition.getSelectedItem(),
                 filterValue.getText().trim(),
                 ignoreCase.isSelected()
@@ -89,13 +104,31 @@ final class DataFilterConfigDialog extends JDialog {
         }
     }
 
-    DataFilterConfigDialog(JFrame owner, DataFilterModule module) {
+    DataFilterConfigDialog(JFrame owner, DataFilterModule module, Workflow workflow) {
         super(owner, true);
         this.module = module;
+        this.workflow = workflow;
+        
         setUndecorated(true);
-        setSize(780, 420);
-        setMinimumSize(new Dimension(680, 320));
+        setSize(850, 480);
+        setMinimumSize(new Dimension(800, 350));
         setLocationRelativeTo(owner);
+
+        // Load Schema
+        DataNode incomingSchema = workflow.getIncomingSchema(module.getId(), "DataInput");
+        if (incomingSchema == null) {
+            // Fallback generic schema
+            incomingSchema = DataNode.arrayNode("Records");
+            incomingSchema.setDataType(DataNode.DataType.ARRAY);
+        }
+        extractFields(incomingSchema);
+
+        structureTree = new JTree(buildTreeNode(incomingSchema));
+        structureTree.setShowsRootHandles(true);
+        structureTree.setCellRenderer(new SchemaTreeRenderer());
+        for (int i = 0; i < structureTree.getRowCount(); i++) {
+            structureTree.expandRow(i);
+        }
 
         multipleValues = new JCheckBox("Allow multiple values", module.isAllowMultipleValues());
         multipleValues.setOpaque(false);
@@ -117,22 +150,41 @@ final class DataFilterConfigDialog extends JDialog {
         JPanel root = new JPanel(new BorderLayout());
         root.setBorder(BorderFactory.createLineBorder(new Color(55, 55, 55), 2));
         root.add(createTitleBar(), BorderLayout.NORTH);
-        root.add(createForm(), BorderLayout.CENTER);
+        root.add(createSplitPane(), BorderLayout.CENTER);
         root.add(createButtons(), BorderLayout.SOUTH);
         setContentPane(root);
     }
 
     boolean isAccepted() { return accepted; }
 
+    private void extractFields(DataNode node) {
+        if (node.getDataType() == DataNode.DataType.STRING || 
+            node.getDataType() == DataNode.DataType.NUMBER || 
+            node.getDataType() == DataNode.DataType.BOOL) {
+            availableFields.add(node.getName());
+        }
+        for (DataNode child : node.getChildren()) {
+            extractFields(child);
+        }
+    }
+
+    private DefaultMutableTreeNode buildTreeNode(DataNode node) {
+        DefaultMutableTreeNode uiNode = new DefaultMutableTreeNode(node);
+        for (DataNode child : node.getChildren()) {
+            uiNode.add(buildTreeNode(child));
+        }
+        return uiNode;
+    }
+
     private JPanel createTitleBar() {
         JPanel titleBar = new JPanel(new BorderLayout());
         titleBar.setBackground(new Color(58, 58, 58));
         titleBar.setBorder(BorderFactory.createEmptyBorder(5, 9, 5, 7));
-        JLabel title = new JLabel("◆  Data Filter - " + module.getName());
+        JLabel title = new JLabel("\u25c6  Data Filter - " + module.getName());
         title.setForeground(new Color(225, 225, 225));
         titleBar.add(title, BorderLayout.WEST);
 
-        JLabel actions = new JLabel("?     —     □     ×");
+        JLabel actions = new JLabel("?     \u2014     \u25a1     \u00d7");
         actions.setForeground(new Color(225, 225, 225));
         actions.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         actions.addMouseListener(new MouseAdapter() {
@@ -157,14 +209,28 @@ final class DataFilterConfigDialog extends JDialog {
         return titleBar;
     }
 
-    private JPanel createForm() {
-        JPanel form = new JPanel(new BorderLayout(10, 10));
-        form.setBackground(new Color(232, 232, 232));
-        form.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+    private JSplitPane createSplitPane() {
+        // Left Pane (Data Structure)
+        JPanel leftPane = new JPanel(new BorderLayout());
+        leftPane.setBackground(Color.WHITE);
+        JLabel leftTitle = new JLabel(" Data Structure");
+        leftTitle.setOpaque(true);
+        leftTitle.setBackground(new Color(220, 220, 220));
+        leftTitle.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+        leftPane.add(leftTitle, BorderLayout.NORTH);
+        
+        JScrollPane treeScroll = new JScrollPane(structureTree);
+        treeScroll.setBorder(BorderFactory.createEmptyBorder());
+        leftPane.add(treeScroll, BorderLayout.CENTER);
+
+        // Right Pane (Filter Options)
+        JPanel rightPane = new JPanel(new BorderLayout(10, 10));
+        rightPane.setBackground(new Color(232, 232, 232));
+        rightPane.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
         
         JScrollPane scroll = new JScrollPane(criteriaPanel);
         scroll.setBorder(BorderFactory.createLineBorder(Color.GRAY));
-        form.add(scroll, BorderLayout.CENTER);
+        rightPane.add(scroll, BorderLayout.CENTER);
         
         JPanel options = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5));
         options.setOpaque(false);
@@ -181,9 +247,13 @@ final class DataFilterConfigDialog extends JDialog {
             criteriaPanel.repaint();
         });
         options.add(addBtn);
-        
-        form.add(options, BorderLayout.SOUTH);
-        return form;
+        rightPane.add(options, BorderLayout.SOUTH);
+
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPane, rightPane);
+        splitPane.setDividerLocation(250);
+        splitPane.setContinuousLayout(true);
+        splitPane.setBorder(BorderFactory.createEmptyBorder());
+        return splitPane;
     }
 
     private JPanel createButtons() {
@@ -232,5 +302,19 @@ final class DataFilterConfigDialog extends JDialog {
         }
         accepted = true;
         dispose();
+    }
+
+    private static class SchemaTreeRenderer extends DefaultTreeCellRenderer {
+        private static final long serialVersionUID = 1L;
+        @Override
+        public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean exp, boolean leaf, int row, boolean hasFocus) {
+            super.getTreeCellRendererComponent(tree, value, sel, exp, leaf, row, hasFocus);
+            if (value instanceof DefaultMutableTreeNode node) {
+                if (node.getUserObject() instanceof DataNode dataNode) {
+                    setText(dataNode.getName() + "  [" + dataNode.getDataType().name() + "]");
+                }
+            }
+            return this;
+        }
     }
 }

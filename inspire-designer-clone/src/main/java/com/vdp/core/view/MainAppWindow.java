@@ -80,7 +80,7 @@ public final class MainAppWindow extends JFrame {
         updateTitle();  // set initial window title
     }
 
-    // ── Menu bar ──────────────────────────────────────────────────────────────
+    // ── Menu bar ──────────────────────────────────────────────────────────────────
 
     private JMenuBar createMenuBar() {
         JMenuBar bar = new JMenuBar();
@@ -88,11 +88,10 @@ public final class MainAppWindow extends JFrame {
         bar.setBorder(BorderFactory.createEmptyBorder(1, 8, 1, 4));
 
         bar.add(buildFileMenu());
-        for (String title : new String[]{"Edit", "Workflow", "Window", "Help"}) {
-            JMenu menu = new JMenu(title);
-            menu.setForeground(new Color(225, 225, 225));
-            bar.add(menu);
-        }
+        bar.add(buildEditMenu());
+        bar.add(buildWorkflowMenu());
+        bar.add(buildWindowMenu());
+        bar.add(buildHelpMenu());
 
         bar.add(javax.swing.Box.createHorizontalGlue());
         JLabel product = new JLabel("Inspire Designer");
@@ -102,73 +101,195 @@ public final class MainAppWindow extends JFrame {
         return bar;
     }
 
+    private JMenuItem createMenuItem(String text) {
+        JMenuItem item = new JMenuItem(text);
+        // Most items just show a placeholder status for now
+        item.addActionListener(e -> status.setText(text + " invoked (Placeholder)"));
+        return item;
+    }
+
     private JMenu buildFileMenu() {
         JMenu menu = new JMenu("File");
         menu.setForeground(new Color(225, 225, 225));
 
         JMenuItem newItem  = new JMenuItem("New Workflow");
         JMenuItem openItem = new JMenuItem("Open Workflow...");
+        JMenuItem closeItem = createMenuItem("Close Workflow");
+        JMenuItem closeAll = createMenuItem("Close All Workflows");
         JMenuItem saveItem = new JMenuItem("Save");
         JMenuItem saveAs   = new JMenuItem("Save As...");
+        JMenuItem checkIn  = createMenuItem("Check In");
+        JMenuItem printFromProof = createMenuItem("Print from Proof...");
+        JMenuItem pageSetup = createMenuItem("Page Setup...");
+        JMenuItem printItem = createMenuItem("Print...");
+        JMenuItem revertItem = createMenuItem("Revert to Last Version");
+        JMenuItem optionsItem = createMenuItem("Workflow Options...");
+        JMenuItem exitItem = new JMenuItem("Exit");
 
         newItem.addActionListener(event  -> handleNew());
         openItem.addActionListener(event -> handleOpen());
         saveItem.addActionListener(event -> handleSave());
         saveAs.addActionListener(event   -> handleSaveAs());
+        exitItem.addActionListener(event -> System.exit(0));
 
-        menu.add(newItem);
-        menu.add(openItem);
+        menu.add(newItem); menu.add(openItem); menu.add(closeItem); menu.add(closeAll);
         menu.addSeparator();
-        menu.add(saveItem);
-        menu.add(saveAs);
+        menu.add(saveItem); menu.add(saveAs); menu.add(checkIn);
+        menu.addSeparator();
+        menu.add(printFromProof); menu.add(pageSetup); menu.add(printItem);
+        menu.addSeparator();
+        menu.add(revertItem); menu.add(optionsItem);
+        menu.addSeparator();
+        menu.add(exitItem);
         return menu;
     }
 
-    // ── Toolbar ───────────────────────────────────────────────────────────────
+    private JMenu buildEditMenu() {
+        JMenu menu = new JMenu("Edit");
+        menu.setForeground(new Color(225, 225, 225));
 
-    private JToolBar createToolbar() {
-        JToolBar toolbar = new JToolBar();
-        toolbar.setFloatable(true);
-        toolbar.setBackground(InspireTheme.TOOLBAR);
-        toolbar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, InspireTheme.BORDER));
+        menu.add(createMenuItem("Undo"));
+        menu.add(createMenuItem("Redo"));
+        menu.addSeparator();
+        menu.add(createMenuItem("Cut"));
+        menu.add(createMenuItem("Copy"));
+        menu.add(createMenuItem("Paste"));
+        menu.add(createMenuItem("Paste Selection"));
+        menu.add(createMenuItem("Delete"));
+        menu.addSeparator();
+        menu.add(createMenuItem("Select All"));
+        menu.addSeparator();
+        menu.add(createMenuItem("Search..."));
+        menu.add(createMenuItem("Compare Workflows..."));
+        menu.add(createMenuItem("Used Files..."));
+        menu.addSeparator();
+        menu.add(createMenuItem("Edit Modules..."));
+        return menu;
+    }
 
-        JButton btnNew  = InspireTheme.toolbarButton("□",  "New Workflow");
+    private JMenu buildWorkflowMenu() {
+        JMenu menu = new JMenu("Workflow");
+        menu.setForeground(new Color(225, 225, 225));
+
+        menu.add(createMenuItem("Sort Module Tree"));
+        menu.addSeparator();
+        menu.add(createMenuItem("Show Grid"));
+        menu.add(createMenuItem("Snap to Grid"));
+        menu.addSeparator();
+        menu.add(createMenuItem("Find in Workflow..."));
+        menu.add(createMenuItem("Debug..."));
+        
+        JMenuItem runItem = new JMenuItem("Run (Proof)");
+        runItem.addActionListener(e -> runProof());
+        menu.add(runItem);
+
+        menu.add(createMenuItem("Profile Data"));
+        return menu;
+    }
+
+    private JMenu buildWindowMenu() {
+        JMenu menu = new JMenu("Window");
+        menu.setForeground(new Color(225, 225, 225));
+
+        menu.add(createMenuItem("Tile Horizontally"));
+        menu.add(createMenuItem("Tile Vertically"));
+        menu.add(createMenuItem("Cascade"));
+        return menu;
+    }
+
+    private JMenu buildHelpMenu() {
+        JMenu menu = new JMenu("Help");
+        menu.setForeground(new Color(225, 225, 225));
+
+        menu.add(createMenuItem("Inspire Designer Help"));
+        menu.add(createMenuItem("About Inspire Designer Clone"));
+        return menu;
+    }
+
+// ── Toolbar ───────────────────────────────────────────────────────────────────
+
+    private JPanel createToolbar() {
+        JPanel toolbarContainer = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        toolbarContainer.setBackground(InspireTheme.TOOLBAR);
+        toolbarContainer.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, InspireTheme.BORDER));
+
+        // Standard Toolbar
+        JToolBar standard = buildBaseToolbar("Standard");
+        JButton btnNew  = InspireTheme.toolbarButton("☐",  "New Workflow");
         JButton btnOpen = InspireTheme.toolbarButton("↗",  "Open Workflow");
         JButton btnSave = InspireTheme.toolbarButton("▣",  "Save Workflow");
         btnNew.addActionListener(event  -> handleNew());
         btnOpen.addActionListener(event -> handleOpen());
         btnSave.addActionListener(event -> handleSave());
-
-        toolbar.add(btnNew);
-        toolbar.add(btnOpen);
-        toolbar.add(btnSave);
-        toolbar.addSeparator();
-
-        toolbar.add(InspireTheme.toolbarButton("✂", "Cut"));
-        toolbar.add(InspireTheme.toolbarButton("▤", "Copy"));
-        toolbar.add(InspireTheme.toolbarButton("▥", "Paste"));
-        toolbar.addSeparator();
-
+        standard.add(btnNew); standard.add(btnOpen); standard.add(btnSave);
+        standard.addSeparator();
+        standard.add(InspireTheme.toolbarButton("🖨", "Print Workflow"));
+        standard.addSeparator();
+        standard.add(InspireTheme.toolbarButton("✂", "Cut"));
+        standard.add(InspireTheme.toolbarButton("⧉", "Copy"));
+        standard.add(InspireTheme.toolbarButton("📋", "Paste"));
+        standard.addSeparator();
+        standard.add(InspireTheme.toolbarButton("↶", "Undo"));
+        standard.add(InspireTheme.toolbarButton("↷", "Redo"));
+        standard.addSeparator();
+        standard.add(InspireTheme.toolbarButton("🔍", "Find"));
+        
+        // Extended standard tools (Validate, Run) to keep functionality accessible
         JButton validate = InspireTheme.toolbarButton("✓", "Validate Workflow");
         validate.addActionListener(event -> validateWorkflow());
-        toolbar.add(validate);
-
+        standard.add(validate);
         JButton runProof = InspireTheme.toolbarButton("▶", "Run Proof");
         runProof.addActionListener(event -> runProof());
-        toolbar.add(runProof);
-        toolbar.addSeparator();
+        standard.add(runProof);
 
+        // Zoom Toolbar
+        JToolBar zoom = buildBaseToolbar("Zoom");
         JButton zoomOut = InspireTheme.toolbarButton("−", "Zoom Out");
         JButton zoomIn  = InspireTheme.toolbarButton("+", "Zoom In");
         zoomOut.addActionListener(event -> workflowCanvas.zoomOut());
         zoomIn.addActionListener(event  -> workflowCanvas.zoomIn());
-        toolbar.add(zoomOut);
-        toolbar.add(zoomIn);
+        zoom.add(zoomOut);
+        zoom.add(zoomIn);
+        javax.swing.JComboBox<String> zoomLevels = new javax.swing.JComboBox<>(new String[]{"100%", "75%", "50%", "150%", "200%"});
+        zoomLevels.setPreferredSize(new Dimension(70, 24));
+        zoomLevels.setMaximumSize(new Dimension(70, 24));
+        zoom.add(zoomLevels);
+        zoom.add(InspireTheme.toolbarButton("⤢", "Fit to Window"));
+        zoom.add(InspireTheme.toolbarButton("↔", "Fit to Width"));
 
-        return toolbar;
+        // Alignment Toolbar
+        JToolBar align = buildBaseToolbar("Alignment");
+        align.add(InspireTheme.toolbarButton("⇤", "Align Left"));
+        align.add(InspireTheme.toolbarButton("⇥", "Align Right"));
+        align.add(InspireTheme.toolbarButton("⇡", "Align Top"));
+        align.add(InspireTheme.toolbarButton("⇣", "Align Bottom"));
+        align.add(InspireTheme.toolbarButton("↔", "Center horizontally"));
+        align.add(InspireTheme.toolbarButton("↕", "Center vertically"));
+
+        // ICM Toolbar
+        JToolBar icm = buildBaseToolbar("ICM");
+        icm.add(InspireTheme.toolbarButton("⇘", "Check in"));
+        icm.add(InspireTheme.toolbarButton("⇗", "Check out"));
+        icm.add(InspireTheme.toolbarButton("↶", "Undo check out"));
+        icm.add(InspireTheme.toolbarButton("◷", "Show history"));
+
+        toolbarContainer.add(standard);
+        toolbarContainer.add(zoom);
+        toolbarContainer.add(align);
+        toolbarContainer.add(icm);
+
+        return toolbarContainer;
     }
 
-    // ── Workspace layout ──────────────────────────────────────────────────────
+    private JToolBar buildBaseToolbar(String name) {
+        JToolBar tb = new JToolBar(name);
+        tb.setFloatable(true);
+        tb.setBackground(InspireTheme.TOOLBAR);
+        tb.setMargin(new java.awt.Insets(2, 4, 2, 4));
+        return tb;
+    }
+
+// ── Workspace layout // ── Workspace layout ──────────────────────────────────────────────────────
 
     private JSplitPane createWorkflowWorkspace() {
         ModulePalette palette   = new ModulePalette();
@@ -437,7 +558,7 @@ public final class MainAppWindow extends JFrame {
 
         } else if (node.getModule() instanceof DataFilterModule filter) {
             DataFilterConfigDialog dialog =
-                    new DataFilterConfigDialog(this, filter);
+                    new DataFilterConfigDialog(this, filter, workflowCanvas.getWorkflow());
             dialog.setVisible(true);
             if (dialog.isAccepted()) {
                 workflowCanvas.getWorkflow().cleanInvalidConnections();
@@ -448,7 +569,7 @@ public final class MainAppWindow extends JFrame {
 
         } else if (node.getModule() instanceof DataSorterModule sorter) {
             DataSorterConfigDialog dialog =
-                    new DataSorterConfigDialog(this, sorter);
+                    new DataSorterConfigDialog(this, sorter, workflowCanvas.getWorkflow());
             dialog.setVisible(true);
             if (dialog.isAccepted()) {
                 node.repaint();

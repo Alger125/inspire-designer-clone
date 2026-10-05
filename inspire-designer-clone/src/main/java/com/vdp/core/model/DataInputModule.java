@@ -26,6 +26,13 @@ public final class DataInputModule extends BaseDataInputModule {
     private int skipFirstLines;
     private boolean useFirstRecordAsFieldNames = true;
 
+    private boolean autoDetect;
+    private boolean useOnlyFirstRecordsInProof;
+    private int proofRecordCount = 100;
+    private boolean rangeForProduction;
+    private int startRecord = 1;
+    private int endRecord = 1000;
+
     public enum FileType {
         CSV,
         FIXED_LENGTH_FIELDS,
@@ -100,7 +107,8 @@ public final class DataInputModule extends BaseDataInputModule {
                     continue;
                 }
 
-                String[] values = parseLine(line);
+                char separator = autoDetect ? detectSeparator() : fieldSeparator.charAt(0);
+                String[] values = parseLine(line, separator);
 
                 if (useFirstRecordAsFieldNames && firstDataRecord) {
                     columnNames = values;
@@ -132,11 +140,9 @@ public final class DataInputModule extends BaseDataInputModule {
         return new DataInputResult(rootNode);
     }
 
-    private String[] parseLine(String line) {
+    private String[] parseLine(String line, char separator) {
         List<String> fields = new ArrayList<>();
         StringBuilder currentValue = new StringBuilder();
-
-        char separator = fieldSeparator.charAt(0);
         boolean qualifierEnabled = !textQualifier.isEmpty();
         char qualifier = qualifierEnabled ? textQualifier.charAt(0) : '\0';
 
@@ -250,5 +256,69 @@ public final class DataInputModule extends BaseDataInputModule {
     public void setUseFirstRecordAsFieldNames(
             boolean useFirstRecordAsFieldNames) {
         this.useFirstRecordAsFieldNames = useFirstRecordAsFieldNames;
+    }
+
+    public boolean isAutoDetect() { return autoDetect; }
+    public void setAutoDetect(boolean autoDetect) { this.autoDetect = autoDetect; }
+
+    public boolean isUseOnlyFirstRecordsInProof() { return useOnlyFirstRecordsInProof; }
+    public void setUseOnlyFirstRecordsInProof(boolean useOnlyFirstRecordsInProof) { this.useOnlyFirstRecordsInProof = useOnlyFirstRecordsInProof; }
+
+    public int getProofRecordCount() { return proofRecordCount; }
+    public void setProofRecordCount(int proofRecordCount) { this.proofRecordCount = proofRecordCount; }
+
+    public boolean isRangeForProduction() { return rangeForProduction; }
+    public void setRangeForProduction(boolean rangeForProduction) { this.rangeForProduction = rangeForProduction; }
+
+    public int getStartRecord() { return startRecord; }
+    public void setStartRecord(int startRecord) { this.startRecord = startRecord; }
+
+    public int getEndRecord() { return endRecord; }
+    public void setEndRecord(int endRecord) { this.endRecord = endRecord; }
+
+    /**
+     * Generates the schema (Data Structure) at design time without executing the module.
+     * This reads only the headers of the CSV.
+     */
+    public DataNode getDesignSchema() {
+        DataNode root = DataNode.arrayNode(rootArrayName);
+        root.setDataType(DataNode.DataType.ARRAY);
+
+        DataNode record = DataNode.objectNode("Record");
+        record.setDataType(DataNode.DataType.OBJECT);
+        root.addChild(record);
+
+        if (inputFilePath == null || inputFilePath.isBlank()) return root;
+        Path path = Path.of(inputFilePath);
+        if (!Files.isRegularFile(path)) return root;
+
+        try {
+            char separator = autoDetect ? detectSeparator() : fieldSeparator.charAt(0);
+            try (BufferedReader reader = Files.newBufferedReader(path, Charset.forName(textEncoding))) {
+                String line;
+                int lineNumber = 0;
+                while ((line = reader.readLine()) != null) {
+                    lineNumber++;
+                    if (lineNumber <= skipFirstLines) continue;
+
+                    String[] values = parseLine(line, separator);
+                    String[] columnNames = useFirstRecordAsFieldNames ? values : defaultColumnNames(values.length);
+
+                    for (String col : columnNames) {
+                        DataNode field = DataNode.valueNode(col, null);
+                        field.setDataType(DataNode.DataType.STRING);
+                        record.addChild(field);
+                    }
+                    break; // Just read the first data line to get the schema
+                }
+            }
+        } catch (Exception e) {
+            // Ignore errors at design time
+        }
+        return root;
+    }
+    private char detectSeparator() throws java.io.IOException {
+        char fallback = fieldSeparator != null && fieldSeparator.length() == 1 ? fieldSeparator.charAt(0) : ',';
+        return fallback; // Dummy implementation for now, or just fallback
     }
 }

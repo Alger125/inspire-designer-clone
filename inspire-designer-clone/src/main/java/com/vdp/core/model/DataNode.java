@@ -14,9 +14,14 @@ public class DataNode {
         OBJECT, ARRAY, VALUE
     }
 
+    public enum DataType {
+        STRING, NUMBER, BOOL, ARRAY, OBJECT, ONE_OF
+    }
+
     private final NodeType type;
     private String name;
     private String value; // Utilizado solo si type == VALUE
+    private DataType dataType = DataType.STRING; // Utilizado para representar el esquema en tiempo de diseño
     private final List<DataNode> children = new ArrayList<>();
     // Mapa interno para búsquedas rápidas en nodos tipo OBJECT
     private final Map<String, DataNode> childMap = new LinkedHashMap<>();
@@ -60,6 +65,14 @@ public class DataNode {
         this.value = value;
     }
 
+    public DataType getDataType() {
+        return dataType;
+    }
+
+    public void setDataType(DataType dataType) {
+        this.dataType = dataType;
+    }
+
     public List<DataNode> getChildren() {
         return children;
     }
@@ -95,6 +108,7 @@ public class DataNode {
     public DataNode deepCopy() {
         DataNode copy = new DataNode(this.type, this.name);
         copy.setValue(this.value);
+        copy.setDataType(this.dataType);
         for (DataNode child : this.children) {
             copy.addChild(child.deepCopy());
         }

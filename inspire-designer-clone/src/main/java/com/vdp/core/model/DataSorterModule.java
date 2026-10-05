@@ -18,6 +18,20 @@ public final class DataSorterModule implements InspireModule {
             List.of(new Port("DataOutput", Port.PortType.DATA));
 
     private final List<SortCriterion> criteria = new ArrayList<>();
+    private MemoryUsage memoryUsage = MemoryUsage.FULLY_IN_MEMORY;
+    private boolean addSortedToNewCopy;
+    private String sortedName = "Sorted";
+    private boolean removeDuplicates;
+
+    public MemoryUsage getMemoryUsage() { return memoryUsage; }
+    public void setMemoryUsage(MemoryUsage memoryUsage) { this.memoryUsage = memoryUsage; }
+    public boolean isAddSortedToNewCopy() { return addSortedToNewCopy; }
+    public void setAddSortedToNewCopy(boolean addSortedToNewCopy) { this.addSortedToNewCopy = addSortedToNewCopy; }
+    public String getSortedName() { return sortedName; }
+    public void setSortedName(String sortedName) { this.sortedName = sortedName; }
+    public boolean isRemoveDuplicates() { return removeDuplicates; }
+    public void setRemoveDuplicates(boolean removeDuplicates) { this.removeDuplicates = removeDuplicates; }
+
 
     public enum Direction {
         ASCENDING("Ascending"),
@@ -40,6 +54,9 @@ public final class DataSorterModule implements InspireModule {
         public String toString() { return displayName; }
     }
 
+    public enum MemoryUsage { ON_DISK, INDEXED_IN_MEMORY, FULLY_IN_MEMORY }
+    public enum Strength { PRIMARY, SECONDARY, TERTIARY, IDENTICAL }
+
     public enum NullOrder {
         FIRST("First"),
         LAST("Last");
@@ -56,6 +73,10 @@ public final class DataSorterModule implements InspireModule {
         private ComparisonType comparisonType;
         private boolean ignoreCase;
         private NullOrder nullOrder;
+        private boolean binaryCompare;
+        private String locale = "";
+        private Strength strength;
+        private boolean normalization;
 
         public SortCriterion(String fieldName, Direction direction, ComparisonType comparisonType, boolean ignoreCase, NullOrder nullOrder) {
             this.fieldName = fieldName == null ? "" : fieldName;
@@ -79,6 +100,14 @@ public final class DataSorterModule implements InspireModule {
         
         public NullOrder getNullOrder() { return nullOrder; }
         public void setNullOrder(NullOrder nullOrder) { this.nullOrder = nullOrder == null ? NullOrder.LAST : nullOrder; }
+        public boolean isBinaryCompare() { return binaryCompare; }
+        public void setBinaryCompare(boolean binaryCompare) { this.binaryCompare = binaryCompare; }
+        public String getLocale() { return locale; }
+        public void setLocale(String locale) { this.locale = locale; }
+        public Strength getStrength() { return strength; }
+        public void setStrength(Strength strength) { this.strength = strength; }
+        public boolean isNormalization() { return normalization; }
+        public void setNormalization(boolean normalization) { this.normalization = normalization; }
     }
 
     public DataSorterModule() {
