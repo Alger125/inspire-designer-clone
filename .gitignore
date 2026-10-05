@@ -1,1 +1,5 @@
-/inspire-designer-clone/target/
+.idea/
+target/
+*.class
+*.log
+.DS_Store
