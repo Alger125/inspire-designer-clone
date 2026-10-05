@@ -284,13 +284,15 @@ final class WorkflowCanvas extends JPanel {
             case "HTTP JSON Input" -> new HttpJsonDataInputModule();
             case "Data Filter"     -> new DataFilterModule();
             case "Data Sorter"     -> new DataSorterModule();
+            case "Data Transformer" -> new com.vdp.core.model.DataTransformerModule();
             case "Data Concatenator" -> new DataConcatenatorModule();
             default -> throw new IllegalArgumentException("Module not implemented: " + type);
         };
     }
 
     private boolean isProcessingModule(String type) {
-        return type.equals("Data Filter") || type.equals("Data Sorter") || type.equals("Data Concatenator");
+        return type.equals("Data Filter") || type.equals("Data Sorter")
+                || type.equals("Data Transformer") || type.equals("Data Concatenator");
     }
 
     // ── Node interaction ──────────────────────────────────────────────────────
@@ -490,6 +492,8 @@ final class WorkflowCanvas extends JPanel {
         } else if (module instanceof DataFilterModule m) {
             m.setName(name);
         } else if (module instanceof DataSorterModule m) {
+            m.setName(name);
+        } else if (module instanceof com.vdp.core.model.DataTransformerModule m) {
             m.setName(name);
         }
     }

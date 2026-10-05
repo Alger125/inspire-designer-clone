@@ -586,6 +586,15 @@ public final class MainAppWindow extends JFrame {
                 status.setText("Data Concatenator configuration updated");
             }
 
+        } else if (node.getModule() instanceof com.vdp.core.model.DataTransformerModule transformer) {
+            DataTransformerConfigDialog dialog = new DataTransformerConfigDialog(
+                    this, transformer, workflowCanvas.getWorkflow());
+            dialog.setVisible(true);
+            if (dialog.isAccepted()) {
+                node.repaint();
+                status.setText("Data Transformer configuration updated");
+            }
+
         } else {
             status.setText("Configuration dialog not implemented for "
                     + node.getModule().getName());

@@ -235,6 +235,15 @@ public final class WorkflowSerializer {
                 config.put("fieldName", first.getFieldName());
                 config.put("direction", first.getDirection().name());
             }
+        } else if (module instanceof DataTransformerModule m) {
+            config.put("keepUnmappedFields", m.isKeepUnmappedFields());
+            ArrayNode mapArray = config.putArray("mappings");
+            for (DataTransformerModule.FieldMapping fm : m.getMappings()) {
+                ObjectNode mn = MAPPER.createObjectNode();
+                mn.put("targetField", fm.getTargetField());
+                mn.put("expression", fm.getExpression());
+                mapArray.add(mn);
+            }
         }
 
         return config;
@@ -369,6 +378,22 @@ public final class WorkflowSerializer {
                         true,
                         DataSorterModule.NullOrder.LAST
                     ));
+                }
+                yield m;
+            }
+
+            case "Data Transformer" -> {
+                DataTransformerModule m = new DataTransformerModule();
+                applyName(m::setName, config);
+                if (config.has("keepUnmappedFields")) {
+                    m.setKeepUnmappedFields(config.get("keepUnmappedFields").asBoolean());
+                }
+                if (config.has("mappings") && config.get("mappings").isArray()) {
+                    for (JsonNode mn : config.get("mappings")) {
+                        m.getMappings().add(new DataTransformerModule.FieldMapping(
+                                mn.has("targetField") ? mn.get("targetField").asText() : "",
+                                mn.has("expression") ? mn.get("expression").asText() : ""));
+                    }
                 }
                 yield m;
             }
