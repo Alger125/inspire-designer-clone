@@ -30,6 +30,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.LinkedHashSet;
 import java.util.Collections;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.HashMap;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.vdp.core.model.WorkflowSerializer;
 import java.util.function.Consumer;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
@@ -65,6 +70,22 @@ final class WorkflowCanvas extends JPanel {
     private java.awt.Point rubberbandStart;
     private final Set<WorkflowNode> rubberbandInitialSelection = new java.util.LinkedHashSet<>();
     private Point        connectionCursor;
+    
+    private static final class ClipboardItem {
+        final com.fasterxml.jackson.databind.node.ObjectNode config;
+        final String type;
+        final String originalId;
+        final java.awt.Point position;
+        ClipboardItem(com.fasterxml.jackson.databind.node.ObjectNode config, String type, String originalId, java.awt.Point position) {
+            this.config = config;
+            this.type = type;
+            this.originalId = originalId;
+            this.position = position;
+        }
+    }
+    private final java.util.List<ClipboardItem> clipboardItems = new java.util.ArrayList<>();
+    private final java.util.List<com.vdp.core.model.WorkflowConnection> clipboardConnections = new java.util.ArrayList<>();
+    private int pasteOffsetMultiplier = 0;
     private double       zoomFactor = 1.0;
 
     // ── Constructor ───────────────────────────────────────────────────────────
@@ -89,6 +110,22 @@ final class WorkflowCanvas extends JPanel {
                     repaint();
                     statusWriter.accept("Connection deleted");
                 }
+            }
+        });
+        
+        getInputMap(javax.swing.JComponent.WHEN_IN_FOCUSED_WINDOW).put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_C, java.awt.event.InputEvent.CTRL_DOWN_MASK), "copyNodes");
+        getActionMap().put("copyNodes", new javax.swing.AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                copySelectedNodes();
+            }
+        });
+        
+        getInputMap(javax.swing.JComponent.WHEN_IN_FOCUSED_WINDOW).put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_V, java.awt.event.InputEvent.CTRL_DOWN_MASK), "pasteNodes");
+        getActionMap().put("pasteNodes", new javax.swing.AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                pasteClipboardNodes();
             }
         });
         setLayout(null);
@@ -221,6 +258,86 @@ final class WorkflowCanvas extends JPanel {
 
     // ── Public API ────────────────────────────────────────────────────────────
 
+    // -- Clipboard --
+
+    void copySelectedNodes() {
+        clipboardItems.clear();
+        clipboardConnections.clear();
+        pasteOffsetMultiplier = 0;
+        if (selectedNodes.isEmpty()) return;
+        
+        HashSet<String> selectedIds = new HashSet<>();
+        for (WorkflowNode node : selectedNodes) {
+            String type = moduleTypes.get(node.getModule().getId());
+            ObjectNode config = WorkflowSerializer.serializeConfig(node.getModule());
+            clipboardItems.add(new ClipboardItem(config, type, node.getModule().getId(), new java.awt.Point(node.getLocation())));
+            selectedIds.add(node.getModule().getId());
+        }
+        
+        for (WorkflowConnection conn : workflow.getConnections()) {
+            if (selectedIds.contains(conn.sourceModuleId()) && selectedIds.contains(conn.targetModuleId())) {
+                clipboardConnections.add(conn);
+            }
+        }
+        statusWriter.accept("Copied " + clipboardItems.size() + " modules");
+    }
+
+    void pasteClipboardNodes() {
+        if (clipboardItems.isEmpty()) return;
+        
+        pasteOffsetMultiplier++;
+        int offset = pasteOffsetMultiplier * 30;
+        
+        HashMap<String, String> oldIdToNewId = new HashMap<>();
+        ArrayList<WorkflowNode> newNodes = new ArrayList<>();
+        
+        for (ClipboardItem item : clipboardItems) {
+            com.vdp.core.model.InspireModule newModule = WorkflowSerializer.createModule(item.type, item.config);
+            oldIdToNewId.put(item.originalId, newModule.getId());
+            
+            java.awt.Color accent = isProcessingModule(item.type) ? InspireTheme.DATA_PROCESSING : InspireTheme.DATA_INPUT;
+            boolean acceptsInput = isProcessingModule(item.type);
+            WorkflowNode newNode = new WorkflowNode(item.type, newModule, accent, acceptsInput);
+            installNodeInteraction(newNode);
+            workflow.addModule(newModule);
+            moduleTypes.put(newModule.getId(), item.type);
+            
+            newNode.setLocation(item.position.x + offset, item.position.y + offset);
+            add(newNode);
+            setComponentZOrder(newNode, 0);
+            newNodes.add(newNode);
+        }
+        
+        for (WorkflowConnection conn : clipboardConnections) {
+            String newSourceId = oldIdToNewId.get(conn.sourceModuleId());
+            String newTargetId = oldIdToNewId.get(conn.targetModuleId());
+            if (newSourceId != null && newTargetId != null) {
+                com.vdp.core.model.InspireModule sourceModule = workflow.findModule(newSourceId);
+                com.vdp.core.model.InspireModule targetModule = workflow.findModule(newTargetId);
+                if (sourceModule != null && targetModule != null) {
+                    com.vdp.core.model.Port sPort = sourceModule.getOutputPorts().stream().filter(p -> p.getId().equals(conn.sourcePortId())).findFirst().orElse(null);
+                    com.vdp.core.model.Port tPort = targetModule.getInputPorts().stream().filter(p -> p.getId().equals(conn.targetPortId())).findFirst().orElse(null);
+                    if (sPort != null && tPort != null) {
+                        workflow.connect(sourceModule, sPort, targetModule, tPort);
+                    }
+                }
+            }
+        }
+        
+        selectOnly(null);
+        for (WorkflowNode newNode : newNodes) {
+            selectedNodes.add(newNode);
+        }
+        if (!newNodes.isEmpty()) {
+            primarySelectedNode = newNodes.get(0);
+        }
+        updateNodesSelectionState();
+        
+        revalidate();
+        repaint();
+        statusWriter.accept("Pasted " + newNodes.size() + " modules");
+    }
+
     /** Returns the live workflow model. */
     Workflow getWorkflow() { return workflow; }
 
@@ -231,6 +348,7 @@ final class WorkflowCanvas extends JPanel {
 
     /** Returns a snapshot of palette-type strings by module id. */
     Map<String, String> getModuleTypes() { return Map.copyOf(moduleTypes); }
+    void registerModuleType(String moduleId, String type) { moduleTypes.put(moduleId, type); }
 
     /** Returns the current canvas position of every node. */
     Map<String, Point> getNodePositions() {
@@ -533,7 +651,7 @@ final class WorkflowCanvas extends JPanel {
         return null;
     }
 
-    private void selectOnly(WorkflowNode selected) {
+    void selectOnly(WorkflowNode selected) {
         selectedNodes.clear();
         primarySelectedNode = selected;
         if (selected != null) {
@@ -543,7 +661,7 @@ final class WorkflowCanvas extends JPanel {
         updateNodesSelectionState();
     }
 
-    private void toggleSelection(WorkflowNode node) {
+    void toggleSelection(WorkflowNode node) {
         if (selectedNodes.contains(node)) {
             selectedNodes.remove(node);
             if (primarySelectedNode == node) {

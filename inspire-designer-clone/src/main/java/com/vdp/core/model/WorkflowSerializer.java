@@ -168,7 +168,7 @@ public final class WorkflowSerializer {
 
     // ── Config serialization ──────────────────────────────────────────────────
 
-    private static ObjectNode serializeConfig(InspireModule module) {
+    public static ObjectNode serializeConfig(InspireModule module) {
         ObjectNode config = MAPPER.createObjectNode();
         config.put("name", module.getName());
 
@@ -251,7 +251,7 @@ public final class WorkflowSerializer {
 
     // ── Config deserialization ────────────────────────────────────────────────
 
-    private static InspireModule createModule(String type, ObjectNode config) {
+    public static InspireModule createModule(String type, ObjectNode config) {
         return switch (type) {
 
             case "Data Generator" -> {
