@@ -44,7 +44,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.TransferHandler;
 import com.vdp.core.model.Port;
 
-final class WorkflowCanvas extends JPanel {
+public final class WorkflowCanvas extends JPanel {
     private static final long serialVersionUID = 1L;
 
     private static final double ZOOM_STEP = 0.25;
@@ -64,6 +64,7 @@ final class WorkflowCanvas extends JPanel {
     private final Set<WorkflowNode> selectedNodes = new LinkedHashSet<>();
     private WorkflowNode primarySelectedNode;
     private WorkflowConnection selectedConnection;
+    private final com.vdp.core.view.command.CommandManager commandManager = new com.vdp.core.view.command.CommandManager();
     private java.util.Map<WorkflowNode, java.awt.Point> dragInitialPositions;
     private java.awt.Point dragStartCanvas;
     private java.awt.Rectangle selectionRect;
@@ -101,13 +102,13 @@ final class WorkflowCanvas extends JPanel {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
                 if (!selectedNodes.isEmpty()) {
-                    for (WorkflowNode n : new java.util.ArrayList<>(selectedNodes)) {
-                        removeNode(n);
-                    }
+                    commandManager.executeCommand(new com.vdp.core.view.command.DeleteNodesCommand(WorkflowCanvas.this, new java.util.ArrayList<>(selectedNodes), WorkflowCanvas.this::repaint));
+                    selectedNodes.clear();
+                    primarySelectedNode = null;
+                    statusWriter.accept("Selected modules deleted");
                 } else if (selectedConnection != null) {
-                    workflow.removeConnection(selectedConnection);
+                    commandManager.executeCommand(new com.vdp.core.view.command.DeleteConnectionCommand(WorkflowCanvas.this, selectedConnection, WorkflowCanvas.this::repaint));
                     selectedConnection = null;
-                    repaint();
                     statusWriter.accept("Connection deleted");
                 }
             }
@@ -126,6 +127,22 @@ final class WorkflowCanvas extends JPanel {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
                 pasteClipboardNodes();
+            }
+        });
+        
+        getInputMap(javax.swing.JComponent.WHEN_IN_FOCUSED_WINDOW).put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, java.awt.event.InputEvent.CTRL_DOWN_MASK), "undoCommand");
+        getActionMap().put("undoCommand", new javax.swing.AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                commandManager.undo();
+            }
+        });
+        
+        getInputMap(javax.swing.JComponent.WHEN_IN_FOCUSED_WINDOW).put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Y, java.awt.event.InputEvent.CTRL_DOWN_MASK), "redoCommand");
+        getActionMap().put("redoCommand", new javax.swing.AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                commandManager.redo();
             }
         });
         setLayout(null);
@@ -246,9 +263,8 @@ final class WorkflowCanvas extends JPanel {
         JMenuItem delete = new JMenuItem("Delete Connection");
         delete.addActionListener(event -> {
             if (selectedConnection != null) {
-                workflow.removeConnection(selectedConnection);
+                commandManager.executeCommand(new com.vdp.core.view.command.DeleteConnectionCommand(WorkflowCanvas.this, selectedConnection, WorkflowCanvas.this::repaint));
                 selectedConnection = null;
-                repaint();
                 statusWriter.accept("Connection deleted");
             }
         });
@@ -339,7 +355,7 @@ final class WorkflowCanvas extends JPanel {
     }
 
     /** Returns the live workflow model. */
-    Workflow getWorkflow() { return workflow; }
+    public Workflow getWorkflow() { return workflow; }
 
     /** Returns which modules are selected (used by runProof). */
     String getSelectedModuleId() {
@@ -347,7 +363,7 @@ final class WorkflowCanvas extends JPanel {
     }
 
     /** Returns a snapshot of palette-type strings by module id. */
-    Map<String, String> getModuleTypes() { return Map.copyOf(moduleTypes); }
+    public Map<String, String> getModuleTypes() { return Map.copyOf(moduleTypes); }
     void registerModuleType(String moduleId, String type) { moduleTypes.put(moduleId, type); }
 
     /** Returns the current canvas position of every node. */
@@ -567,6 +583,14 @@ final class WorkflowCanvas extends JPanel {
                     finishConnection(node,
                             SwingUtilities.convertPoint(
                                     node, event.getPoint(), WorkflowCanvas.this));
+                } else if (dragStartCanvas != null && dragInitialPositions != null) {
+                    java.util.Map<WorkflowNode, Point> finalPositions = new java.util.HashMap<>();
+                    for (WorkflowNode n : selectedNodes) {
+                        finalPositions.put(n, n.getLocation());
+                    }
+                    if (!finalPositions.equals(dragInitialPositions)) {
+                        commandManager.executeCommand(new com.vdp.core.view.command.MoveNodesCommand(dragInitialPositions, finalPositions, WorkflowCanvas.this::repaint));
+                    }
                 }
                 dragStartCanvas = null;
                 dragInitialPositions = null;
@@ -713,9 +737,9 @@ final class WorkflowCanvas extends JPanel {
 
         JMenuItem delete = new JMenuItem(selectedNodes.size() > 1 ? "Delete Selected Modules" : "Delete Module");
         delete.addActionListener(event -> {
-            for (WorkflowNode n : new java.util.ArrayList<>(selectedNodes)) {
-                removeNode(n);
-            }
+            commandManager.executeCommand(new com.vdp.core.view.command.DeleteNodesCommand(WorkflowCanvas.this, new java.util.ArrayList<>(selectedNodes), WorkflowCanvas.this::repaint));
+            selectedNodes.clear();
+            primarySelectedNode = null;
         });
         menu.add(delete);
 
@@ -763,6 +787,24 @@ final class WorkflowCanvas extends JPanel {
         }
     }
 
+    public void removeNodeDirectly(WorkflowNode node) {
+        selectedNodes.remove(node);
+        if (primarySelectedNode == node) {
+            primarySelectedNode = selectedNodes.isEmpty() ? null : selectedNodes.iterator().next();
+        }
+        moduleTypes.remove(node.getModule().getId());
+        workflow.removeModule(node.getModule());
+        remove(node);
+        statusWriter.accept(node.getModule().getName() + " removed");
+    }
+    
+    public void addNodeDirectly(WorkflowNode node, String type) {
+        workflow.addModule(node.getModule());
+        moduleTypes.put(node.getModule().getId(), type);
+        add(node);
+        setComponentZOrder(node, 0);
+    }
+    
     private void removeNode(WorkflowNode node) {
         selectedNodes.remove(node);
         if (primarySelectedNode == node) {

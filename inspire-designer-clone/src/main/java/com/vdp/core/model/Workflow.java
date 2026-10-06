@@ -92,6 +92,10 @@ public class Workflow {
         return connection;
     }
 
+    public void restoreConnection(WorkflowConnection connection) {
+        if (!connections.contains(connection)) connections.add(connection);
+    }
+
     public void removeConnection(WorkflowConnection connection) {
         connections.remove(connection);
     }
