@@ -376,7 +376,7 @@ final class WorkflowCanvas extends JPanel {
 
     private void installNodeInteraction(WorkflowNode node) {
         MouseAdapter interaction = new MouseAdapter() {
-            private Point dragOffset;
+
 
             @Override
             public void mousePressed(MouseEvent event) {
