@@ -115,6 +115,74 @@ class WorkflowCanvasCopyPasteTest {
     }
 
     @Test
+    void testRepeatedPasteCreatesUniqueModulesAndOffsets() {
+        DataFilterModule filter = new DataFilterModule();
+        filter.setName("BaseFilter");
+        addModuleToCanvas(filter, 100, 100, "Data Filter");
+        
+        canvas.selectOnly(getNodeForId(filter.getId()));
+        canvas.copySelectedNodes();
+        
+        // Paste 1
+        canvas.pasteClipboardNodes();
+        WorkflowNode paste1 = getNodeForId(canvas.getSelectedModuleId());
+        assertNotNull(paste1);
+        assertEquals(new Point(130, 130), paste1.getLocation());
+        
+        // Paste 2
+        canvas.pasteClipboardNodes();
+        WorkflowNode paste2 = getNodeForId(canvas.getSelectedModuleId());
+        assertNotNull(paste2);
+        assertEquals(new Point(160, 160), paste2.getLocation());
+        
+        // Paste 3
+        canvas.pasteClipboardNodes();
+        WorkflowNode paste3 = getNodeForId(canvas.getSelectedModuleId());
+        assertNotNull(paste3);
+        assertEquals(new Point(190, 190), paste3.getLocation());
+        
+        // Ensure all UUIDs are unique
+        assertNotEquals(filter.getId(), paste1.getModule().getId());
+        assertNotEquals(filter.getId(), paste2.getModule().getId());
+        assertNotEquals(filter.getId(), paste3.getModule().getId());
+        assertNotEquals(paste1.getModule().getId(), paste2.getModule().getId());
+        assertNotEquals(paste1.getModule().getId(), paste3.getModule().getId());
+        assertNotEquals(paste2.getModule().getId(), paste3.getModule().getId());
+        
+        assertEquals(4, canvas.getWorkflow().getModules().size());
+    }
+
+    @Test
+    void testPastedModuleConfigurationIsIndependent() {
+        DataFilterModule filter = new DataFilterModule();
+        filter.setName("BaseFilter");
+        DataFilterModule.FilterCriterion crit = new DataFilterModule.FilterCriterion();
+        crit.setFieldName("Age");
+        crit.setCondition(DataFilterModule.Condition.BIGGER_THAN);
+        crit.setFilterValue("18");
+        filter.getCriteria().add(crit);
+        
+        addModuleToCanvas(filter, 100, 100, "Data Filter");
+        
+        canvas.selectOnly(getNodeForId(filter.getId()));
+        canvas.copySelectedNodes();
+        canvas.pasteClipboardNodes();
+        
+        WorkflowNode pasteNode = getNodeForId(canvas.getSelectedModuleId());
+        DataFilterModule pastedFilter = (DataFilterModule) pasteNode.getModule();
+        
+        // Verify cloned correctly
+        assertEquals(2, pastedFilter.getCriteria().size());
+        assertEquals("Age", pastedFilter.getCriteria().get(1).getFieldName());
+        
+        // Modify pasted filter
+        pastedFilter.getCriteria().get(1).setFilterValue("21");
+        
+        // Original should be unchanged
+        assertEquals("18", filter.getCriteria().get(1).getFilterValue());
+    }
+
+    @Test
     void testCopyPartialGroup_ShouldNotCopyExternalConnections() {
         DataGeneratorModule gen = new DataGeneratorModule();
         DataFilterModule filter = new DataFilterModule();
