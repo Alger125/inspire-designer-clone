@@ -53,4 +53,6 @@ public class CommandManager {
             onStateChanged.run();
         }
     }
+
+    public int getUndoStackSize() { return undoStack.size(); }
 }

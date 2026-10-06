@@ -13,7 +13,7 @@ import java.awt.geom.Path2D;
 import java.util.List;
 import javax.swing.JComponent;
 
-public final class WorkflowNode extends JComponent {
+final class WorkflowNode extends JComponent {
     private static final long serialVersionUID = 1L;
     static final int WIDTH = 94;
     static final int HEIGHT = 103;

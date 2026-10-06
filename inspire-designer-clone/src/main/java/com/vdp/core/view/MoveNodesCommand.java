@@ -1,4 +1,6 @@
-package com.vdp.core.view.command;
+package com.vdp.core.view;
+
+import com.vdp.core.view.command.Command;
 
 import com.vdp.core.view.WorkflowNode;
 import java.awt.Point;
