@@ -70,6 +70,8 @@ public abstract class BaseDataInputModule implements InspireModule {
         try {
             DataInputResult result = readData();
 
+            context.setData("DataOutput", result.getRootNode());
+            // For backwards compatibility until all modules are updated
             context.setRoot(result.getRootNode());
 
         } catch (RuntimeException exception) {
