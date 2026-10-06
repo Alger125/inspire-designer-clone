@@ -30,11 +30,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.LinkedHashSet;
 import java.util.Collections;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.HashMap;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.vdp.core.model.WorkflowSerializer;
 import java.util.function.Consumer;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
@@ -44,7 +42,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.TransferHandler;
 import com.vdp.core.model.Port;
 
-public final class WorkflowCanvas extends JPanel {
+final class WorkflowCanvas extends JPanel {
     private static final long serialVersionUID = 1L;
 
     private static final double ZOOM_STEP = 0.25;
