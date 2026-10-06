@@ -27,6 +27,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.LinkedHashSet;
+import java.util.Collections;
 import java.util.function.Consumer;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
@@ -53,8 +56,11 @@ final class WorkflowCanvas extends JPanel {
 
     private WorkflowNode connectingSource;
     private Port connectingSourcePort;
-    private WorkflowNode selectedNode;
+    private final Set<WorkflowNode> selectedNodes = new LinkedHashSet<>();
     private WorkflowConnection selectedConnection;
+    private java.awt.Rectangle selectionRect;
+    private java.awt.Point rubberbandStart;
+    private final Set<WorkflowNode> rubberbandInitialSelection = new java.util.LinkedHashSet<>();
     private Point        connectionCursor;
     private double       zoomFactor = 1.0;
 
@@ -66,12 +72,14 @@ final class WorkflowCanvas extends JPanel {
         this.statusWriter = statusWriter;
         
         setFocusable(true);
-        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(javax.swing.KeyStroke.getKeyStroke("DELETE"), "deleteNode");
+        getInputMap(javax.swing.JComponent.WHEN_IN_FOCUSED_WINDOW).put(javax.swing.KeyStroke.getKeyStroke("DELETE"), "deleteNode");
         getActionMap().put("deleteNode", new javax.swing.AbstractAction() {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
-                if (selectedNode != null) {
-                    removeNode(selectedNode);
+                if (!selectedNodes.isEmpty()) {
+                    for (WorkflowNode n : new java.util.ArrayList<>(selectedNodes)) {
+                        removeNode(n);
+                    }
                 } else if (selectedConnection != null) {
                     workflow.removeConnection(selectedConnection);
                     selectedConnection = null;
@@ -88,19 +96,69 @@ final class WorkflowCanvas extends JPanel {
     }
     
     private void installCanvasInteraction() {
-        MouseAdapter ma = new MouseAdapter() {
+        java.awt.event.MouseAdapter ma = new java.awt.event.MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                selectOnly(null); // deselect nodes
-                selectedConnection = findConnectionAt(e.getPoint());
-                repaint();
-                
-                if (SwingUtilities.isRightMouseButton(e) && selectedConnection != null) {
-                    showConnectionMenu(e.getX(), e.getY());
+                if (SwingUtilities.isLeftMouseButton(e)) {
+                    selectedConnection = findConnectionAt(e.getPoint());
+                    if (selectedConnection != null) {
+                        selectOnly(null);
+                        repaint();
+                    } else {
+                        if (!e.isControlDown()) {
+                            selectOnly(null);
+                        }
+                        rubberbandStart = e.getPoint();
+                        selectionRect = new java.awt.Rectangle(rubberbandStart);
+                        rubberbandInitialSelection.clear();
+                        if (e.isControlDown()) {
+                            rubberbandInitialSelection.addAll(selectedNodes);
+                        }
+                    }
+                } else if (SwingUtilities.isRightMouseButton(e)) {
+                    selectedConnection = findConnectionAt(e.getPoint());
+                    if (selectedConnection != null) {
+                        selectOnly(null);
+                        showConnectionMenu(e.getX(), e.getY());
+                    }
+                    repaint();
+                }
+            }
+
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                if (rubberbandStart != null) {
+                    int x = Math.min(rubberbandStart.x, e.getX());
+                    int y = Math.min(rubberbandStart.y, e.getY());
+                    int width = Math.abs(rubberbandStart.x - e.getX());
+                    int height = Math.abs(rubberbandStart.y - e.getY());
+                    selectionRect = new java.awt.Rectangle(x, y, width, height);
+                    
+                    selectedNodes.clear();
+                    selectedNodes.addAll(rubberbandInitialSelection);
+                    for (java.awt.Component comp : getComponents()) {
+                        if (comp instanceof WorkflowNode node) {
+                            if (selectionRect.intersects(node.getBounds())) {
+                                selectedNodes.add(node);
+                            }
+                        }
+                    }
+                    updateNodesSelectionState();
+                    repaint();
+                }
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (rubberbandStart != null) {
+                    rubberbandStart = null;
+                    selectionRect = null;
+                    repaint();
                 }
             }
         };
         addMouseListener(ma);
+        addMouseMotionListener(ma);
     }
     
     private WorkflowConnection findConnectionAt(Point p) {
@@ -165,7 +223,7 @@ final class WorkflowCanvas extends JPanel {
 
     /** Returns which modules are selected (used by runProof). */
     String getSelectedModuleId() {
-        return selectedNode == null ? null : selectedNode.getModule().getId();
+        return selectedNodes.isEmpty() ? null : selectedNodes.iterator().next().getModule().getId();
     }
 
     /** Returns a snapshot of palette-type strings by module id. */
@@ -319,11 +377,19 @@ final class WorkflowCanvas extends JPanel {
 
             @Override
             public void mousePressed(MouseEvent event) {
-                selectOnly(node);
                 if (SwingUtilities.isRightMouseButton(event)) {
+                    if (!selectedNodes.contains(node)) {
+                        selectOnly(node);
+                    }
                     showNodeMenu(node, event.getX(), event.getY());
                     return;
                 }
+                if (event.isControlDown()) {
+                    toggleSelection(node);
+                } else if (!selectedNodes.contains(node)) {
+                    selectOnly(node);
+                }
+                
                 Port hitPort = node.getOutputPortHit(event.getPoint());
                 if (hitPort != null) {
                     connectingSource = node;
@@ -343,9 +409,15 @@ final class WorkflowCanvas extends JPanel {
                 } else if (dragOffset != null) {
                     Point canvas = SwingUtilities.convertPoint(
                             node, event.getPoint(), WorkflowCanvas.this);
-                    node.setLocation(
-                            Math.max(0,  canvas.x - dragOffset.x),
-                            Math.max(55, canvas.y - dragOffset.y));
+                    int newX = Math.max(0, canvas.x - dragOffset.x);
+                    int newY = Math.max(55, canvas.y - dragOffset.y);
+                    int dx = newX - node.getX();
+                    int dy = newY - node.getY();
+                    if (dx != 0 || dy != 0) {
+                        for (WorkflowNode n : selectedNodes) {
+                            n.setLocation(Math.max(0, n.getX() + dx), Math.max(55, n.getY() + dy));
+                        }
+                    }
                 }
                 repaint();
             }
@@ -440,13 +512,37 @@ final class WorkflowCanvas extends JPanel {
     }
 
     private void selectOnly(WorkflowNode selected) {
-        selectedNode = selected;
+        selectedNodes.clear();
+        if (selected != null) {
+            selectedNodes.add(selected);
+        }
         selectedConnection = null;
+        updateNodesSelectionState();
+    }
+
+    private void toggleSelection(WorkflowNode node) {
+        if (selectedNodes.contains(node)) {
+            selectedNodes.remove(node);
+        } else {
+            selectedNodes.add(node);
+        }
+        selectedConnection = null;
+        updateNodesSelectionState();
+    }
+
+    private void clearSelection() {
+        selectedNodes.clear();
+        selectedConnection = null;
+        updateNodesSelectionState();
+    }
+
+    private void updateNodesSelectionState() {
         for (Component comp : getComponents()) {
             if (comp instanceof WorkflowNode node) {
-                node.setNodeSelected(node == selected);
+                node.setNodeSelected(selectedNodes.contains(node));
             }
         }
+        repaint();
     }
 
     // ── Context menu ──────────────────────────────────────────────────────────
@@ -515,7 +611,7 @@ final class WorkflowCanvas extends JPanel {
     }
 
     private void removeNode(WorkflowNode node) {
-        if (selectedNode == node) selectedNode = null;
+        selectedNodes.remove(node);
         moduleTypes.remove(node.getModule().getId());
         workflow.removeModule(node.getModule());
         remove(node);
@@ -552,6 +648,13 @@ final class WorkflowCanvas extends JPanel {
             g2.setColor(InspireTheme.LAYOUT);
             Point p1 = getPortPoint(connectingSource, connectingSourcePort.getId(), false);
             paintWire(g2, p1, connectionCursor);
+        }
+        if (selectionRect != null) {
+            g2.setColor(new Color(0, 120, 215, 50));
+            g2.fill(selectionRect);
+            g2.setColor(new Color(0, 120, 215));
+            g2.setStroke(new java.awt.BasicStroke(1f));
+            g2.draw(selectionRect);
         }
         g2.dispose();
     }
@@ -609,7 +712,7 @@ final class WorkflowCanvas extends JPanel {
     private void clearCanvas() {
         removeAll();
         moduleTypes.clear();
-        selectedNode    = null;
+        selectedNodes.clear();
         selectedConnection = null;
         connectingSource = null;
         connectionCursor = null;
