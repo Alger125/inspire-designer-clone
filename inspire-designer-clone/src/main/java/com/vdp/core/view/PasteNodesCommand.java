@@ -16,7 +16,7 @@ import java.util.Map;
 
 import com.vdp.core.model.WorkflowSerializer;
 
-public class PasteNodesCommand implements Command {
+class PasteNodesCommand implements Command {
     private final WorkflowCanvas canvas;
     private final Runnable repaintCallback;
 

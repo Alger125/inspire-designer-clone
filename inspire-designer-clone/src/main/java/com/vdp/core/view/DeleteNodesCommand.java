@@ -12,7 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class DeleteNodesCommand implements Command {
+class DeleteNodesCommand implements Command {
     private final WorkflowCanvas canvas;
     private final List<WorkflowNode> deletedNodes;
     private final List<WorkflowConnection> deletedConnections;

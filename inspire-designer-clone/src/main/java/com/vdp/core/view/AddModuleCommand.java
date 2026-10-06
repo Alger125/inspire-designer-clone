@@ -2,7 +2,7 @@ package com.vdp.core.view;
 
 import com.vdp.core.view.command.Command;
 
-public class AddModuleCommand implements Command {
+class AddModuleCommand implements Command {
     private final WorkflowCanvas canvas;
     private final WorkflowNode node;
     private final String type;

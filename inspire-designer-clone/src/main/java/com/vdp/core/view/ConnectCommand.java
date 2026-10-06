@@ -6,7 +6,7 @@ import com.vdp.core.model.Workflow;
 import com.vdp.core.model.WorkflowConnection;
 import com.vdp.core.view.command.Command;
 
-public class ConnectCommand implements Command {
+class ConnectCommand implements Command {
     private final WorkflowCanvas canvas;
     private final InspireModule source;
     private final Port sourcePort;

@@ -654,6 +654,9 @@ public final class WorkflowCanvas extends JPanel {
         updateNodesSelectionState();
     }
 
+    java.util.List<ClipboardItem> getClipboardItems() { return clipboardItems; }
+    java.util.List<com.vdp.core.model.WorkflowConnection> getClipboardConnections() { return clipboardConnections; }
+
     void toggleSelection(WorkflowNode node) {
         if (selectedNodes.contains(node)) {
             selectedNodes.remove(node);

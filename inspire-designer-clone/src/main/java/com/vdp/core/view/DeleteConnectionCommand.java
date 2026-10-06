@@ -6,7 +6,7 @@ import com.vdp.core.model.Workflow;
 import com.vdp.core.model.WorkflowConnection;
 import com.vdp.core.view.WorkflowCanvas;
 
-public class DeleteConnectionCommand implements Command {
+class DeleteConnectionCommand implements Command {
     private final WorkflowCanvas canvas;
     private final WorkflowConnection connection;
     private final Runnable repaintCallback;
@@ -23,10 +23,6 @@ public class DeleteConnectionCommand implements Command {
         if (memento == null) {
             memento = canvas.getWorkflow().removeConnection(connection);
         } else {
-            // Wait, if it's redone, the connection is already gone, but actually removeConnection returns memento.
-            // Oh, execute is called first time and for redo.
-            // Redo: we remove the connection again. If we remove it, we might get a new memento, but the old one is fine.
-            // Let's just remove it and keep the original memento.
             canvas.getWorkflow().removeConnection(connection);
         }
         if (repaintCallback != null) repaintCallback.run();

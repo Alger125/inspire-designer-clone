@@ -7,7 +7,7 @@ import java.awt.Point;
 import java.util.HashMap;
 import java.util.Map;
 
-public class MoveNodesCommand implements Command {
+class MoveNodesCommand implements Command {
     private final Map<WorkflowNode, Point> initialPositions;
     private final Map<WorkflowNode, Point> finalPositions;
     private final Runnable repaintCallback;
