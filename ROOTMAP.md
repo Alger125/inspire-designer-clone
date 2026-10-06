@@ -1,0 +1,2593 @@
+# ROOTMAP — INSPIRE DESIGNER CLONE
+
+## 0. MISIÓN DEL PROYECTO
+
+Construir una reimplementación funcional de **Quadient Inspire Designer 14.0** en Java.
+
+El objetivo es conseguir la máxima fidelidad posible en:
+
+- comportamiento;
+- flujo de trabajo;
+- organización de ventanas;
+- workflow visual;
+- módulos;
+- configuración de módulos;
+- conexiones;
+- procesamiento de datos;
+- validación;
+- Data Proof;
+- edición de documentos;
+- navegación;
+- persistencia;
+- interacción del usuario.
+
+La fuente principal de comportamiento será:
+
+`inspire-designer-user-manual-14-0-en.pdf`
+
+La implementación debe ser propia.
+
+NO copiar:
+
+- código fuente propietario;
+- binarios;
+- iconos originales;
+- logotipos;
+- imágenes;
+- fuentes propietarias;
+- recursos internos de Quadient.
+
+Sí se debe reproducir, cuando sea técnicamente posible:
+
+- funcionalidad;
+- arquitectura conceptual;
+- comportamiento observable;
+- organización;
+- controles;
+- operaciones;
+- workflow;
+- módulos;
+- diálogos;
+- validaciones;
+- experiencia de uso.
+
+---
+
+# 1. REGLA MÁS IMPORTANTE
+
+NO implementar módulos aleatoriamente.
+
+NO comenzar una funcionalidad nueva hasta que la etapa anterior esté:
+
+1. implementada;
+2. compilando;
+3. integrada;
+4. serializable cuando corresponda;
+5. validada;
+6. probada mediante JUnit;
+7. probada dentro de la interfaz gráfica.
+
+Cada funcionalidad debe desarrollarse verticalmente:
+
+```text
+MODEL
+  ↓
+EXECUTION
+  ↓
+VALIDATION
+  ↓
+SERIALIZATION
+  ↓
+UI
+  ↓
+TESTS
+```
+
+Sólo entonces se considera terminada.
+
+---
+
+# 2. REPOSITORIO
+
+Repositorio principal:
+
+`Alger125/inspire-designer-clone`
+
+Trabajar siempre sobre el estado más reciente del repositorio.
+
+Antes de modificar cualquier archivo:
+
+1. inspeccionar el árbol completo del proyecto;
+2. leer las clases relacionadas;
+3. revisar los tests relacionados;
+4. revisar serialización;
+5. comprobar conexiones;
+6. comprobar dependencias;
+7. identificar posibles regresiones.
+
+Nunca reemplazar una arquitectura que ya funciona sin una razón técnica demostrable.
+
+---
+
+# 3. ESTADO ACTUAL DEL PROYECTO
+
+Actualmente existen aproximadamente estas capas:
+
+```text
+com.vdp.core
+│
+├── controller
+│   └── WorkflowController
+│
+├── model
+│   ├── InspireModule
+│   ├── Workflow
+│   ├── WorkflowConnection
+│   ├── Port
+│   ├── ExecutionContext
+│   ├── ExecutionSnapshot
+│   ├── DataNode
+│   ├── ValidationMessage
+│   ├── ProofRunResult
+│   ├── WorkflowSerializer
+│   │
+│   ├── BaseDataInputModule
+│   ├── DataInputModule
+│   ├── HttpJsonDataInputModule
+│   ├── DataGeneratorModule
+│   ├── DataFilterModule
+│   └── DataSorterModule
+│
+├── model.layout
+│   ├── LayoutElement
+│   └── TextElement
+│
+└── view
+    ├── MainAppWindow
+    ├── WorkflowCanvas
+    ├── WorkflowNode
+    ├── ModulePalette
+    ├── ValidationResultsPanel
+    ├── DataProofPanel
+    ├── *ConfigDialog
+    │
+    └── layout
+        └── SheetEditorPanel
+```
+
+Existen ya:
+
+- workflow visual;
+- drag & drop;
+- nodos;
+- conexiones;
+- eliminación de conexiones;
+- validación;
+- prevención de ciclos;
+- ejecución topológica;
+- múltiples puertos;
+- Matched / Else;
+- Data Generator;
+- CSV Data Input;
+- HTTP JSON Input;
+- Data Filter;
+- Data Sorter;
+- Data Proof;
+- serialización;
+- layout inicial;
+- TextElement;
+- tests.
+
+NO rehacer estas partes desde cero.
+
+Mejorarlas incrementalmente.
+
+---
+
+# 4. ARQUITECTURA DEFINITIVA
+
+La arquitectura base debe mantenerse aproximadamente así:
+
+```text
+                    MainAppWindow
+                          │
+                          ▼
+                  WorkflowController
+                          │
+                          ▼
+                       Workflow
+                  ┌───────┴───────┐
+                  │               │
+             Modules[]       Connections[]
+                  │
+                  ▼
+              InspireModule
+                  │
+       ┌──────────┼───────────┐
+       ▼          ▼           ▼
+   Data Input   Processing   Output
+```
+
+Todo módulo ejecutable debe implementar:
+
+```java
+InspireModule
+```
+
+Contrato conceptual:
+
+```java
+String getId();
+
+String getName();
+
+String getModuleFamily();
+
+List<Port> getInputPorts();
+
+List<Port> getOutputPorts();
+
+List<String> validate();
+
+void execute(ExecutionContext context);
+```
+
+---
+
+# 5. PRINCIPIO DE PUERTOS
+
+Todos los módulos deben comunicarse EXCLUSIVAMENTE mediante puertos.
+
+Ejemplo:
+
+```text
+Generator
+ DataOutput
+     │
+     ▼
+ DataInput
+ Filter
+     │
+ ┌───┴────┐
+ ▼        ▼
+Matched   Else
+```
+
+`ExecutionContext` debe funcionar como:
+
+```text
+Port ID → DataNode
+```
+
+Ejemplo:
+
+```text
+DataInput  -> DataNode
+DataOutput -> DataNode
+Matched    -> DataNode
+Else       -> DataNode
+InputA     -> DataNode
+InputB     -> DataNode
+```
+
+## OBJETIVO ARQUITECTÓNICO CRÍTICO
+
+Eliminar gradualmente la dependencia funcional de:
+
+```java
+context.getRoot()
+context.setRoot()
+```
+
+Estas funciones pueden permanecer temporalmente para compatibilidad con workflows antiguos.
+
+Los módulos nuevos NO deben depender de `root`.
+
+Deben utilizar:
+
+```java
+context.getData("PortId")
+context.setData("PortId", result)
+```
+
+---
+
+# 6. DATANODE
+
+`DataNode` será la representación universal de datos.
+
+Debe soportar:
+
+```text
+OBJECT
+ARRAY
+VALUE
+```
+
+Ejemplo:
+
+```text
+Customers [ARRAY]
+
+├── Customer [OBJECT]
+│   ├── Name = "Erick"
+│   ├── Age = "18"
+│   └── Address [OBJECT]
+│       ├── City = "CDMX"
+│       └── ZIP = "00000"
+│
+└── Customer [OBJECT]
+    ├── Name = "Ana"
+    └── Age = "21"
+```
+
+Todas las funcionalidades futuras deben trabajar sobre `DataNode`.
+
+NO volver a:
+
+```text
+List<String>
+String[]
+Map<String,String>
+```
+
+como formato universal interno.
+
+Pueden utilizarse temporalmente dentro de parsers, pero el resultado final siempre debe convertirse a `DataNode`.
+
+---
+
+# 7. MOTOR DE WORKFLOW
+
+`Workflow` debe ser responsable de la estructura del grafo.
+
+Debe conservar:
+
+- addModule;
+- removeModule;
+- connect;
+- removeConnection;
+- findModule;
+- incoming connections;
+- outgoing connections;
+- limpieza de conexiones inválidas;
+- validación;
+- orden topológico;
+- detección de ciclos.
+
+## Una conexión debe impedir:
+
+```text
+Output → Output
+
+Input → Input
+
+Module → mismo Module
+
+duplicados
+
+ciclos
+
+dos conexiones sobre el mismo Input
+```
+
+Debe permitir:
+
+```text
+               ┌→ Module B
+Module A ──────┤
+               └→ Module C
+```
+
+Fan-out de una salida.
+
+---
+
+# 8. EJECUCIÓN DEL WORKFLOW
+
+El orden visual NO determina el orden de ejecución.
+
+Ejemplo visual:
+
+```text
+Sorter      Generator       Filter
+```
+
+si las conexiones indican:
+
+```text
+Generator → Filter → Sorter
+```
+
+el controlador debe ejecutar:
+
+```text
+Generator
+Filter
+Sorter
+```
+
+Utilizar el grafo y orden topológico.
+
+---
+
+# 9. OBJETIVO INMEDIATO — FASE 0
+
+Antes de añadir módulos:
+
+## LIMPIEZA ARQUITECTÓNICA
+
+Revisar:
+
+```text
+DataGeneratorModule
+DataInputModule
+HttpJsonDataInputModule
+DataFilterModule
+DataSorterModule
+Workflow
+WorkflowController
+ExecutionContext
+WorkflowSerializer
+```
+
+### Tareas
+
+- eliminar imports duplicados;
+- eliminar métodos muertos;
+- eliminar código legacy innecesario;
+- detectar TODOs;
+- detectar placeholders;
+- detectar inconsistencias de nomenclatura;
+- comprobar todos los Port IDs;
+- comprobar todos los outputs;
+- comprobar serialización;
+- comprobar deserialización.
+
+### Resultado obligatorio
+
+```bash
+mvn test
+```
+
+debe finalizar correctamente.
+
+NO avanzar si hay tests rotos.
+
+---
+
+# 10. FASE 1 — SISTEMA DE PUERTOS DEFINITIVO
+
+Refactorizar los módulos existentes.
+
+## Generator
+
+Debe generar:
+
+```text
+DataOutput
+```
+
+## Data Input
+
+Debe generar:
+
+```text
+DataOutput
+```
+
+## HTTP JSON Input
+
+Debe generar:
+
+```text
+DataOutput
+```
+
+## Filter
+
+Debe leer:
+
+```text
+DataInput
+```
+
+Debe escribir:
+
+```text
+Matched
+Else
+```
+
+## Sorter
+
+Debe leer:
+
+```text
+DataInput
+```
+
+Debe escribir:
+
+```text
+DataOutput
+```
+
+No utilizar implícitamente `root`.
+
+---
+
+# 11. TEST OBLIGATORIO FASE 1
+
+Crear:
+
+```text
+Generator
+1..6
+   ↓
+Filter
+Value > 3
+   ↓ Matched
+Sorter DESC
+```
+
+Resultado:
+
+```text
+6
+5
+4
+```
+
+Mientras que `Else` debe contener:
+
+```text
+1
+2
+3
+```
+
+JUnit debe comprobar valores reales.
+
+NO comprobar solamente:
+
+```text
+recordCount == 3
+```
+
+Comprobar también:
+
+```text
+6
+5
+4
+```
+
+---
+
+# 12. FASE 2 — DATA SORTER COMPLETO
+
+Comparar Data Sorter con el manual.
+
+Debe evolucionar de:
+
+```text
+fieldName
+direction
+```
+
+a:
+
+```text
+SortCriterion[]
+```
+
+Cada criterio debe poder contener aproximadamente:
+
+```text
+field
+direction
+type
+ignoreCase
+nullOrder
+```
+
+Diseño conceptual:
+
+```java
+class SortCriterion {
+
+    String fieldName;
+
+    Direction direction;
+
+    SortType type;
+
+    boolean ignoreCase;
+
+    NullOrder nullOrder;
+}
+```
+
+Tipos:
+
+```text
+AUTO
+NUMBER
+TEXT
+```
+
+Direction:
+
+```text
+ASCENDING
+DESCENDING
+```
+
+NullOrder:
+
+```text
+FIRST
+LAST
+```
+
+---
+
+# 13. MULTI-SORT
+
+Soportar:
+
+```text
+Country ASC
+LastName ASC
+Age DESC
+```
+
+Ejemplo:
+
+```text
+MX | Jimenez | 22
+MX | Jimenez | 18
+MX | Lopez   | 30
+US | Smith   | 20
+```
+
+Los criterios deben evaluarse en el orden mostrado.
+
+La interfaz debe permitir:
+
+```text
+Add
+Remove
+Move Up
+Move Down
+```
+
+---
+
+# 14. FASE 3 — DATA TRANSFORMER
+
+Implementar Data Transformer basándose en el manual.
+
+Objetivo inicial:
+
+Crear campos nuevos a partir de campos existentes.
+
+Ejemplo:
+
+```text
+FirstName = Erick
+LastName  = Jimenez
+```
+
+transformación:
+
+```text
+FullName = FirstName + " " + LastName
+```
+
+Resultado:
+
+```text
+FullName = Erick Jimenez
+```
+
+Otro ejemplo:
+
+```text
+Price = 100
+```
+
+↓
+
+```text
+IVA = Price * 0.16
+Total = Price + IVA
+```
+
+---
+
+# 15. EXPRESSION ENGINE
+
+NO dispersar evaluaciones de expresiones dentro de los módulos.
+
+Crear un subsistema independiente:
+
+```text
+com.vdp.core.expression
+```
+
+Por ejemplo:
+
+```text
+ExpressionEngine
+ExpressionParser
+ExpressionContext
+ExpressionResult
+```
+
+Primera versión:
+
+```text
+strings
+numbers
++
+-
+*
+/
+()
+field references
+```
+
+Posteriormente:
+
+```text
+IF
+AND
+OR
+NOT
+comparisons
+string functions
+date functions
+```
+
+---
+
+# 16. FASE 4 — UNIFICAR DATA PATHS
+
+Crear una forma estándar para acceder a datos anidados.
+
+Ejemplo:
+
+```text
+Customer.Address.City
+```
+
+Debe poder resolver:
+
+```text
+Customer
+   └ Address
+       └ City
+```
+
+Crear algo equivalente a:
+
+```java
+DataPathResolver.resolve(node, "Customer.Address.City")
+```
+
+Esto será utilizado por:
+
+- Filter;
+- Sorter;
+- Transformer;
+- Layout;
+- variables;
+- condiciones.
+
+---
+
+# 17. FASE 5 — WORKFLOW CANVAS FIDELITY
+
+Después de estabilizar backend, mejorar WorkflowCanvas.
+
+Debe aproximarse al Inspire Designer original en:
+
+```text
+node dimensions
+ports
+wire routing
+selection
+colors
+module names
+module family grouping
+context menus
+zoom
+alignment
+canvas behavior
+drag & drop
+```
+
+Implementar:
+
+```text
+multi-select
+rectangle selection
+Delete keyboard shortcut
+Ctrl+C
+Ctrl+V
+Ctrl+Z
+Ctrl+Y
+```
+
+Posteriormente:
+
+```text
+align left
+align center
+align right
+align top
+align middle
+align bottom
+distribute horizontally
+distribute vertically
+```
+
+---
+
+# 18. FASE 6 — COMMAND SYSTEM / UNDO
+
+Antes de añadir mucha UI editable, crear:
+
+```text
+Command
+```
+
+Ejemplos:
+
+```text
+AddModuleCommand
+DeleteModuleCommand
+MoveModuleCommand
+ConnectCommand
+DisconnectCommand
+RenameModuleCommand
+EditModuleCommand
+```
+
+Después:
+
+```text
+UndoManager
+```
+
+Debe permitir:
+
+```text
+Ctrl+Z
+Ctrl+Y
+```
+
+Esto evitará implementar Undo individualmente en cada pantalla.
+
+---
+
+# 19. FASE 7 — SERIALIZACIÓN V2
+
+Definir formato oficial del proyecto.
+
+Ejemplo conceptual:
+
+```json
+{
+  "format": "inspire-designer-clone",
+  "version": 2,
+
+  "workflow": {},
+  "layout": {},
+  "settings": {}
+}
+```
+
+Nunca depender únicamente de nombres visuales de puertos.
+
+Guardar IDs estables.
+
+Implementar migración:
+
+```text
+V1 → V2
+```
+
+No acumular fallbacks indefinidamente.
+
+---
+
+# 20. FASE 8 — DATA PROOF COMPLETO
+
+Data Proof debe permitir inspeccionar los resultados de cada módulo.
+
+Debe mostrar:
+
+```text
+Module selector
+
+Record:
+1 / N
+
+Structure
+Type
+Value
+
+Logs
+Validation
+Execution information
+```
+
+Navegación:
+
+```text
+|<
+<
+>
+>|
+```
+
+Debe poder seleccionar:
+
+```text
+Generator
+Filter Matched
+Filter Else
+Sorter
+Transformer
+```
+
+y observar su resultado.
+
+---
+
+# 21. EXECUTION SNAPSHOT
+
+Cada ejecución debe producir:
+
+```text
+ExecutionSnapshot
+```
+
+que contenga progresivamente:
+
+```text
+moduleId
+moduleName
+data
+recordCount
+timestamp
+executionTime
+warnings
+errors
+```
+
+NO permitir que Data Proof lea directamente estado mutable de los módulos.
+
+---
+
+# 22. FASE 9 — PROFILING
+
+Medir:
+
+```java
+long start = System.nanoTime();
+
+module.execute(context);
+
+long elapsed = System.nanoTime() - start;
+```
+
+Guardar tiempo.
+
+Data Proof podrá mostrar:
+
+```text
+Generator      1.4 ms
+Filter         3.1 ms
+Sorter         4.7 ms
+Transformer    2.0 ms
+```
+
+Este sistema debe ser opcional y no alterar resultados.
+
+---
+
+# 23. FASE 10 — LAYOUT ENGINE
+
+A partir de aquí empieza el segundo gran subsistema del clon.
+
+Separar:
+
+```text
+workflow/data engine
+```
+
+de:
+
+```text
+layout/document engine
+```
+
+Paquete:
+
+```text
+com.vdp.core.layout
+```
+
+Elementos base:
+
+```text
+LayoutDocument
+Page
+LayoutElement
+TextElement
+ImageElement
+RectangleElement
+LineElement
+TableElement
+```
+
+---
+
+# 24. MODELO DE DOCUMENTO
+
+Conceptualmente:
+
+```text
+LayoutDocument
+
+├── Page 1
+│   ├── TextElement
+│   ├── TextElement
+│   ├── ImageElement
+│   └── RectangleElement
+│
+└── Page 2
+    └── ...
+```
+
+Cada elemento debe poseer:
+
+```text
+id
+x
+y
+width
+height
+visible
+rotation
+zIndex
+```
+
+---
+
+# 25. COORDENADAS
+
+Evitar que el modelo dependa directamente de píxeles Swing.
+
+Utilizar unidades de documento.
+
+Por ejemplo:
+
+```text
+POINT
+MM
+INCH
+```
+
+y transformar a píxeles únicamente durante render.
+
+Esto permitirá posteriormente:
+
+```text
+PDF
+printing
+zoom
+different DPI
+```
+
+---
+
+# 26. FASE 11 — TEXT ELEMENT REAL
+
+Actualmente existe `TextElement`.
+
+Convertirlo en objeto de composición real.
+
+Debe soportar:
+
+```text
+text
+font family
+font size
+bold
+italic
+underline
+alignment
+vertical alignment
+color
+background
+padding
+```
+
+UI:
+
+```text
+font dropdown
+size
+B
+I
+U
+
+left
+center
+right
+justify
+```
+
+---
+
+# 27. FASE 12 — DATA BINDING
+
+ESTA ES UNA DE LAS FUNCIONES MÁS IMPORTANTES DE TODO EL PROYECTO.
+
+Un TextElement debe poder tener:
+
+```text
+Hello {Name}
+```
+
+Dados:
+
+```text
+Name = Erick
+```
+
+renderizar:
+
+```text
+Hello Erick
+```
+
+Otro ejemplo:
+
+```text
+Dear {Customer.FirstName} {Customer.LastName}
+```
+
+Utilizar el `DataPathResolver`.
+
+---
+
+# 28. TEMPLATE ENGINE
+
+Crear:
+
+```text
+TemplateEngine
+```
+
+Entrada:
+
+```text
+"Hello {Customer.Name}, your balance is {Balance}"
+```
+
+Datos:
+
+```text
+Customer.Name = Erick
+Balance = 500
+```
+
+Resultado:
+
+```text
+Hello Erick, your balance is 500
+```
+
+Posteriormente permitir:
+
+```text
+formatting
+conditions
+expressions
+```
+
+---
+
+# 29. FASE 13 — LIVE PROOF
+
+Conectar:
+
+```text
+Workflow
+      ↓
+Proof data
+      ↓
+Layout
+```
+
+Ejemplo:
+
+CSV:
+
+```text
+Name,City
+
+Erick,CDMX
+Ana,Puebla
+Carlos,Monterrey
+```
+
+Layout:
+
+```text
+Hello {Name}
+
+We know you live in {City}.
+```
+
+Proof Record 1:
+
+```text
+Hello Erick
+
+We know you live in CDMX.
+```
+
+Record 2:
+
+```text
+Hello Ana
+
+We know you live in Puebla.
+```
+
+Este milestone es PRIORIDAD MÁXIMA.
+
+---
+
+# 30. DEFINICIÓN DEL PRIMER PRODUCTO FUNCIONAL
+
+El sistema no se considera un verdadero Inspire Mini hasta conseguir:
+
+```text
+CSV INPUT
+   ↓
+FILTER
+   ↓
+SORTER
+   ↓
+TRANSFORMER
+   ↓
+LAYOUT
+   ↓
+DATA BINDING
+   ↓
+PROOF
+```
+
+Ejemplo completo:
+
+```text
+customers.csv
+
+Name,Age,State
+Erick,18,CDMX
+Ana,25,Puebla
+Jose,30,CDMX
+```
+
+Filter:
+
+```text
+State == CDMX
+```
+
+Sorter:
+
+```text
+Age DESC
+```
+
+Layout:
+
+```text
+Hello {Name}
+
+Age: {Age}
+```
+
+Proof:
+
+```text
+Jose
+30
+
+Erick
+18
+```
+
+NO empezar 30 módulos adicionales antes de conseguir este flujo completo.
+
+---
+
+# 31. FASE 14 — IMAGE ELEMENT
+
+Implementar:
+
+```text
+ImageElement
+```
+
+Debe soportar:
+
+```text
+local file
+fit
+fill
+stretch
+keep aspect ratio
+crop
+```
+
+Luego:
+
+```text
+data-bound image
+```
+
+Ejemplo:
+
+```text
+{ProfilePicture}
+```
+
+---
+
+# 32. FASE 15 — SHAPES
+
+Implementar:
+
+```text
+Rectangle
+Line
+Ellipse
+```
+
+Propiedades:
+
+```text
+stroke
+stroke width
+fill
+opacity
+```
+
+---
+
+# 33. FASE 16 — TABLE
+
+Implementar `TableElement`.
+
+Primero tabla estática.
+
+Luego:
+
+```text
+dynamic rows
+```
+
+Ejemplo:
+
+```text
+Orders[]
+```
+
+↓
+
+```text
+Product       Price
+--------------------
+Mouse         500
+Keyboard      900
+Monitor      4000
+```
+
+---
+
+# 34. FASE 17 — REPEATING CONTENT
+
+Implementar repetición sobre arrays.
+
+Ejemplo:
+
+```text
+Customer.Orders[]
+```
+
+Cada elemento debe crear una fila o bloque.
+
+Esto será fundamental para documentos variables reales.
+
+---
+
+# 35. FASE 18 — CONDITIONAL CONTENT
+
+Los elementos deben tener:
+
+```text
+visibleWhen
+```
+
+Ejemplo:
+
+```text
+Age >= 18
+```
+
+o:
+
+```text
+Country == "MX"
+```
+
+Utilizar `ExpressionEngine`.
+
+NO crear otro lenguaje independiente.
+
+---
+
+# 36. FASE 19 — PAGINATION
+
+Implementar:
+
+```text
+page overflow
+page creation
+content continuation
+```
+
+Elementos dinámicos no deben dibujarse fuera de la página.
+
+Crear una capa:
+
+```text
+LayoutEngine
+```
+
+que transforme:
+
+```text
+LayoutDocument + Record
+```
+
+en:
+
+```text
+RenderedDocument
+```
+
+---
+
+# 37. FASE 20 — PDF
+
+Sólo después de que Layout + Proof sean fiables.
+
+Pipeline:
+
+```text
+Workflow
+↓
+Record
+↓
+TemplateEngine
+↓
+LayoutEngine
+↓
+RenderedDocument
+↓
+PDF Renderer
+```
+
+El PDF debe conservar:
+
+```text
+page size
+text positioning
+fonts
+images
+shapes
+tables
+pagination
+```
+
+---
+
+# 38. FASE 21 — MÓDULOS DATA PROCESSING
+
+Después del primer workflow completo, implementar más módulos basándose UNO POR UNO en el manual.
+
+Orden sugerido:
+
+```text
+1. Data Transformer
+2. Data Add
+3. Data Concatenator
+4. Data Field Renamer
+5. Data Group By
+6. Data Repeater
+7. Data Combiner
+8. 1-1 Merger
+9. 1-Many Merger
+10. Data Pass Through
+11. Data Remapper
+12. Data UnGroup
+13. Fields To Array
+```
+
+Cada uno debe pasar por:
+
+```text
+manual
+↓
+behavior specification
+↓
+model
+↓
+ports
+↓
+validation
+↓
+execution
+↓
+serialization
+↓
+dialog
+↓
+tests
+```
+
+---
+
+# 39. NO INVENTAR COMPORTAMIENTO
+
+Antes de implementar un módulo:
+
+buscarlo en:
+
+`inspire-designer-user-manual-14-0-en.pdf`
+
+Crear una ficha interna:
+
+```text
+Module:
+Family:
+
+Purpose:
+
+Inputs:
+
+Outputs:
+
+Configuration:
+
+Validation rules:
+
+Execution behavior:
+
+Special cases:
+
+UI:
+```
+
+Sólo entonces programarlo.
+
+Cuando el manual no sea suficiente:
+
+1. inferir comportamiento por consistencia con otros módulos;
+2. marcarlo claramente como inferencia;
+3. aislar la decisión para poder cambiarla posteriormente.
+
+---
+
+# 40. MODULE REGISTRY
+
+Eliminar progresivamente switches gigantes como:
+
+```java
+switch(type) {
+   ...
+}
+```
+
+Crear:
+
+```text
+ModuleRegistry
+```
+
+Ejemplo conceptual:
+
+```java
+register(
+    "Data Filter",
+    "Data Processing",
+    DataFilterModule::new,
+    DataFilterConfigDialog::new
+);
+```
+
+Debe conocer:
+
+```text
+type
+family
+factory
+dialog factory
+color
+icon abstraction
+```
+
+---
+
+# 41. MODULE DESCRIPTOR
+
+Crear:
+
+```java
+ModuleDescriptor
+```
+
+Concepto:
+
+```text
+id
+displayName
+family
+implemented
+factory
+editor
+```
+
+Así ModulePalette podrá construirse automáticamente.
+
+Evitar:
+
+```java
+addItem(...)
+addItem(...)
+addItem(...)
+```
+
+hardcodeado indefinidamente.
+
+---
+
+# 42. VALIDACIÓN CENTRAL
+
+Cada módulo debe validar sus propias opciones.
+
+Ejemplo:
+
+```text
+Data Generator
+
+From > To
+```
+
+↓
+
+```text
+ERROR
+From must be less than or equal to To.
+```
+
+Workflow debe validar estructura:
+
+```text
+input missing
+cycle
+invalid connection
+missing module
+invalid port
+```
+
+El controlador combina ambas.
+
+---
+
+# 43. SEVERITY
+
+Usar:
+
+```text
+INFO
+WARNING
+ERROR
+```
+
+Error:
+
+impide Proof.
+
+Warning:
+
+permite Proof.
+
+Info:
+
+informativo.
+
+---
+
+# 44. LOGGING
+
+Todo Proof debe producir logs.
+
+Ejemplo:
+
+```text
+19:32:01 INFO  DataGenerator1 executed — 100 records
+19:32:01 INFO  DataFilter1 executed — 35 Matched, 65 Else
+19:32:01 INFO  DataSorter1 executed — 35 records
+```
+
+Errores:
+
+```text
+ERROR DataSorter1 failed:
+Field 'Age' was not found.
+```
+
+---
+
+# 45. ERROR HANDLING
+
+NO utilizar silenciosamente:
+
+```java
+catch(Exception ignored) {}
+```
+
+salvo migraciones deliberadas.
+
+Los errores normales deben convertirse a:
+
+```text
+ValidationMessage
+LogEntry
+```
+
+La aplicación NO debe cerrarse por un error de módulo.
+
+---
+
+# 46. UI THREADING
+
+Operaciones lentas como:
+
+```text
+HTTP
+CSV grande
+PDF generation
+Proof complejo
+```
+
+NO deben bloquear Swing EDT.
+
+Introducir posteriormente:
+
+```text
+SwingWorker
+```
+
+o sistema equivalente.
+
+---
+
+# 47. PERFORMANCE
+
+No optimizar prematuramente.
+
+Primero:
+
+```text
+correctness
+```
+
+Después:
+
+```text
+profiling
+```
+
+Después:
+
+```text
+optimization
+```
+
+Nunca modificar comportamiento documentado sólo para acelerar prematuramente.
+
+---
+
+# 48. TESTING POLICY
+
+Cada bug encontrado debe producir un test de regresión cuando sea razonable.
+
+Ejemplo:
+
+Bug:
+
+```text
+Else connection disappears incorrectly
+```
+
+Test:
+
+```text
+testElseConnectionSurvivesSaveLoad()
+```
+
+Después corregir.
+
+Así el bug no debe volver.
+
+---
+
+# 49. TESTS MÍNIMOS POR MÓDULO
+
+Todo módulo debe tener:
+
+```text
+valid configuration
+invalid configuration
+empty input
+normal input
+edge cases
+serialization
+workflow execution
+```
+
+Módulos con varios outputs:
+
+```text
+cada output debe probarse.
+```
+
+---
+
+# 50. GOLDEN WORKFLOWS
+
+Crear workflows de regresión permanentes.
+
+## Workflow A
+
+```text
+Generator → Filter
+```
+
+## Workflow B
+
+```text
+Generator → Filter → Sorter
+```
+
+## Workflow C
+
+```text
+Generator
+    ↓
+Filter
+├ Matched → Sorter A
+└ Else    → Sorter B
+```
+
+## Workflow D
+
+```text
+CSV → Filter → Transformer → Sorter
+```
+
+Estos pipelines nunca deben romperse.
+
+---
+
+# 51. COMPATIBILIDAD DE GUARDADO
+
+Cada vez que cambie serialización:
+
+probar:
+
+```text
+Save
+Close
+Open
+Run Proof
+```
+
+El resultado antes y después debe ser equivalente.
+
+---
+
+# 52. UI FIDELITY POLICY
+
+Para acercarse al Inspire original:
+
+Comparar:
+
+```text
+Manual screenshot
+vs
+Clone screenshot
+```
+
+Analizar:
+
+```text
+spacing
+panel layout
+labels
+control order
+dialog dimensions
+tabs
+buttons
+toolbars
+menus
+workflow nodes
+```
+
+La funcionalidad tiene prioridad sobre perfección visual.
+
+Orden:
+
+```text
+1. Behavior
+2. Structure
+3. Interaction
+4. Visual fidelity
+```
+
+---
+
+# 53. NO COPIAR PIXEL POR PIXEL RECURSOS PROPIETARIOS
+
+Para iconos utilizar:
+
+- iconos propios;
+- formas vectoriales propias;
+- símbolos genéricos.
+
+Mantener posición y función parecidas.
+
+No extraer assets del ejecutable original.
+
+---
+
+# 54. MENÚS
+
+Eventualmente reproducir estructura funcional equivalente a:
+
+```text
+File
+Edit
+View
+Workflow
+Tools
+Help
+```
+
+Implementar progresivamente sólo opciones reales.
+
+NO mostrar 100 opciones falsas eternamente.
+
+Si aparece en UI:
+
+```text
+debe funcionar
+```
+
+o debe marcarse explícitamente como pendiente durante desarrollo.
+
+---
+
+# 55. CONFIG DIALOG STANDARD
+
+Todos los diálogos de módulos deben seguir una estructura consistente:
+
+```text
+Module title
+
+Configuration area
+
+Validation feedback
+
+[OK] [Cancel]
+```
+
+`OK`:
+
+validar.
+
+`Cancel`:
+
+NO modificar configuración original.
+
+Utilizar modelo temporal cuando sea necesario.
+
+---
+
+# 56. COPY / PASTE
+
+Al copiar un módulo:
+
+crear ID nuevo.
+
+NO duplicar:
+
+```text
+moduleId
+```
+
+Copiar:
+
+```text
+configuration
+```
+
+Opcionalmente permitir posteriormente copiar subgrafos.
+
+---
+
+# 57. UNDO SAFETY
+
+Undo debe poder revertir:
+
+```text
+add
+delete
+move
+connect
+disconnect
+rename
+configuration
+layout movement
+layout creation
+layout deletion
+```
+
+---
+
+# 58. MÓDULOS MULTI-INPUT
+
+Preparar arquitectura para:
+
+```text
+Input A
+Input B
+Input C
+```
+
+Nunca asumir:
+
+```text
+un módulo = un input
+```
+
+De ahí la obligación de abandonar `root`.
+
+---
+
+# 59. MÓDULOS MULTI-OUTPUT
+
+Preparar para:
+
+```text
+Output A
+Output B
+Output C
+```
+
+Ya existe precedente:
+
+```text
+Matched
+Else
+```
+
+Nunca asumir:
+
+```text
+un módulo = un output.
+```
+
+---
+
+# 60. DATA IMMUTABILITY / COPYING
+
+Una rama del workflow NO debe modificar accidentalmente los datos de otra rama.
+
+Ejemplo:
+
+```text
+           ┌→ Filter A
+Generator ─┤
+           └→ Filter B
+```
+
+Filter A no debe alterar la entrada observada por Filter B.
+
+Mantener copias independientes cuando corresponda.
+
+Añadir test específico.
+
+---
+
+# 61. ROADMAP MACRO
+
+El proyecto completo queda dividido así:
+
+```text
+STAGE A
+CORE ENGINE
+████████████████
+
+STAGE B
+DATA MODULES
+████████████████
+
+STAGE C
+WORKFLOW UI
+████████████████
+
+STAGE D
+PROOF
+████████████████
+
+STAGE E
+LAYOUT ENGINE
+████████████████
+
+STAGE F
+VARIABLE DATA
+████████████████
+
+STAGE G
+OUTPUT / PDF
+████████████████
+
+STAGE H
+ADVANCED MODULES
+████████████████
+
+STAGE I
+UI FIDELITY
+████████████████
+
+STAGE J
+PRODUCTION HARDENING
+████████████████
+```
+
+---
+
+# 62. ORDEN OBLIGATORIO ACTUAL
+
+A partir del estado actual del repositorio:
+
+```text
+[1]
+AUDIT / CLEANUP
+
+↓
+
+[2]
+PORT ARCHITECTURE
+
+↓
+
+[3]
+DATA SORTER COMPLETE
+
+↓
+
+[4]
+DATA TRANSFORMER
+
+↓
+
+[5]
+EXPRESSION ENGINE
+
+↓
+
+[6]
+DATA PATH RESOLVER
+
+↓
+
+[7]
+WORKFLOW UI IMPROVEMENTS
+
+↓
+
+[8]
+UNDO / REDO
+
+↓
+
+[9]
+SERIALIZATION V2
+
+↓
+
+[10]
+DATA PROOF COMPLETE
+
+↓
+
+[11]
+LAYOUT MODEL
+
+↓
+
+[12]
+TEXT ELEMENT COMPLETE
+
+↓
+
+[13]
+DATA BINDING
+
+↓
+
+[14]
+LIVE LAYOUT PROOF
+
+↓
+
+[15]
+IMAGE
+
+↓
+
+[16]
+TABLE
+
+↓
+
+[17]
+REPEATING CONTENT
+
+↓
+
+[18]
+CONDITIONAL CONTENT
+
+↓
+
+[19]
+PAGINATION
+
+↓
+
+[20]
+PDF
+
+↓
+
+[21]
+MORE INSPIRE MODULES
+
+↓
+
+[22]
+VISUAL FIDELITY PASS
+```
+
+---
+
+# 63. CRITICAL MILESTONE 1
+
+```text
+Generator
+↓
+Filter
+↓
+Sorter
+```
+
+100% correcto.
+
+---
+
+# 64. CRITICAL MILESTONE 2
+
+```text
+CSV
+↓
+Filter
+↓
+Transformer
+↓
+Sorter
+```
+
+100% correcto.
+
+---
+
+# 65. CRITICAL MILESTONE 3
+
+```text
+CSV
+↓
+Workflow
+↓
+Data Proof
+```
+
+Navegación perfecta entre records.
+
+---
+
+# 66. CRITICAL MILESTONE 4
+
+```text
+CSV
+↓
+Workflow
+↓
+TextElement
+↓
+{Name}
+↓
+Live Proof
+```
+
+Este milestone convierte el proyecto realmente en un mini Inspire.
+
+---
+
+# 67. CRITICAL MILESTONE 5
+
+```text
+CSV
+↓
+Workflow
+↓
+Layout
+↓
+Proof
+↓
+PDF
+```
+
+A partir de aquí existe un producto funcional end-to-end.
+
+---
+
+# 68. DEFINITION OF DONE
+
+Una feature sólo se considera terminada cuando:
+
+```text
+[ ] comportamiento estudiado en manual
+[ ] diseño definido
+[ ] modelo implementado
+[ ] ejecución implementada
+[ ] validación implementada
+[ ] serialización implementada
+[ ] UI integrada
+[ ] tests añadidos
+[ ] tests existentes siguen pasando
+[ ] save/load comprobado
+[ ] Proof comprobado
+[ ] no introduce regresiones
+```
+
+---
+
+# 69. REGLA PARA ANTIGRAVITY
+
+Antes de cada tarea:
+
+1. leer ROOTMAP;
+2. inspeccionar implementación actual;
+3. identificar fase actual;
+4. consultar sección correspondiente del manual;
+5. analizar impacto;
+6. realizar el cambio mínimo necesario;
+7. ejecutar tests;
+8. corregir regresiones;
+9. documentar exactamente qué cambió.
+
+NO saltar de fase salvo que una dependencia técnica lo exija.
+
+---
+
+# 70. FORMATO DE RESPUESTA DE ANTIGRAVITY
+
+Después de cada implementación reportar:
+
+```text
+PHASE:
+TASK:
+
+FILES MODIFIED:
+
+FILES CREATED:
+
+BEHAVIOR IMPLEMENTED:
+
+MANUAL REFERENCE:
+
+ARCHITECTURAL DECISIONS:
+
+TESTS ADDED:
+
+TEST RESULT:
+
+KNOWN LIMITATIONS:
+
+NEXT STEP:
+```
+
+---
+
+# 71. NO HACER CAMBIOS MASIVOS SIN JUSTIFICACIÓN
+
+No reemplazar 10 clases si una corrección de 2 clases resuelve el problema.
+
+Priorizar:
+
+```text
+incremental changes
+small commits
+testable commits
+reversible changes
+```
+
+---
+
+# 72. COMMITS
+
+Un objetivo lógico por commit.
+
+Buenos ejemplos:
+
+```text
+refactor: make DataSorter use explicit ports
+
+test: add multi-field sorter regression tests
+
+feat: add DataTransformer expression model
+
+feat: bind text elements to proof record data
+```
+
+Mal ejemplo:
+
+```text
+update everything
+```
+
+---
+
+# 73. NUNCA SACRIFICAR EL CORE PARA COPIAR LA UI
+
+Si existe conflicto entre:
+
+```text
+look identical
+```
+
+y:
+
+```text
+correct execution architecture
+```
+
+priorizar arquitectura.
+
+Después adaptar la UI sobre ella.
+
+---
+
+# 74. VISIÓN FINAL
+
+El usuario debería poder:
+
+1. abrir el programa;
+2. crear workflow;
+3. arrastrar módulos;
+4. configurarlos;
+5. conectarlos;
+6. validar;
+7. ejecutar Proof;
+8. inspeccionar datos;
+9. crear Sheet;
+10. insertar texto;
+11. insertar variables;
+12. insertar imágenes;
+13. insertar tablas;
+14. recorrer registros;
+15. visualizar documento personalizado;
+16. guardar proyecto;
+17. abrir proyecto posteriormente;
+18. generar PDF.
+
+Ejemplo final:
+
+```text
+Customers.csv
+      │
+      ▼
+  Data Input
+      │
+      ▼
+ Data Filter
+ State == MX
+      │
+      ▼
+ Data Transformer
+ FullName
+      │
+      ▼
+ Data Sorter
+ LastName ASC
+      │
+      ▼
+     Layout
+ ┌───────────────────────┐
+ │ Dear {FullName}       │
+ │                       │
+ │ Balance: {Balance}    │
+ │                       │
+ │ {Orders Table}        │
+ └───────────────────────┘
+      │
+      ▼
+     Proof
+      │
+      ▼
+      PDF
+```
+
+---
+
+# 75. PRINCIPIO FINAL
+
+No estamos creando simplemente una interfaz que se parece a Inspire.
+
+Estamos creando:
+
+```text
+DATA ENGINE
++
+WORKFLOW ENGINE
++
+COMPOSITION ENGINE
++
+PROOF ENGINE
++
+DOCUMENT RENDERER
+```
+
+con una experiencia de uso inspirada en Inspire Designer.
+
+Cada nueva función debe fortalecer uno de estos cinco sistemas.
+
+No construir características aisladas que no tengan lugar dentro de esta arquitectura.
+
+# END ROOTMAP  

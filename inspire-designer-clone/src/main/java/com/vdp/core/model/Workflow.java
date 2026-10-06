@@ -238,4 +238,58 @@ public class Workflow {
         }
         return false;
     }
+
+    /**
+     * Traces the workflow backwards from a given input port to determine
+     * the design-time data schema arriving at that port.
+     */
+    public DataNode getIncomingSchema(String targetModuleId, String targetPortId) {
+        List<WorkflowConnection> incoming = getIncomingConnections(targetModuleId);
+        WorkflowConnection connection = incoming.stream()
+                .filter(c -> c.targetPortId().equals(targetPortId) || "DataInput".equals(targetPortId))
+                .findFirst()
+                .orElse(null);
+
+        if (connection == null) return null;
+
+        InspireModule source = findModule(connection.sourceModuleId());
+        if (source == null) return null;
+
+        if (source instanceof DataInputModule) {
+            return ((DataInputModule) source).getDesignSchema();
+        } else if (source instanceof HttpJsonDataInputModule) {
+            // Json input does not have design schema yet, return generic
+            DataNode root = DataNode.arrayNode("Records");
+            root.setDataType(DataNode.DataType.ARRAY);
+            return root;
+        } else {
+            // Processing modules like Filter, Sorter usually pass the same schema they receive.
+            // For a complete implementation, this might ask the module how it transforms the schema.
+            // For now, they don't alter the structure, just pass it through.
+            if (source instanceof DataConcatenatorModule concatenator) {
+                DataNode outputRoot = DataNode.arrayNode("Records");
+                outputRoot.setDataType(DataNode.DataType.ARRAY);
+                DataNode schemaObj = DataNode.objectNode("Record");
+                schemaObj.setDataType(DataNode.DataType.OBJECT);
+                
+                for (int i = 1; i <= concatenator.getNumberOfInputs(); i++) {
+                    DataNode inSchema = getIncomingSchema(concatenator.getId(), "Input" + i);
+                    if (inSchema != null && inSchema.getType() == DataNode.NodeType.ARRAY) {
+                        for (DataNode field : inSchema.getChildren()) {
+                            if (schemaObj.getChild(field.getName()) == null) {
+                                schemaObj.addChild(field.deepCopy());
+                            }
+                        }
+                    }
+                }
+                outputRoot.addChild(schemaObj);
+                return outputRoot;
+            }
+            Port firstInput = source.getInputPorts().isEmpty() ? null : source.getInputPorts().get(0);
+            if (firstInput != null) {
+                return getIncomingSchema(source.getId(), firstInput.getId());
+            }
+        }
+        return null;
+    }
 }

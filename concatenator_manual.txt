@@ -1,0 +1,226 @@
+--- PAGE 251 ---
+Password Enters the password to your company account. The password is used for the first authentication
+and is not saved anywhere, for the subsequent authentications a token is used instead.
+Get Token Generates a token that serves for authorization purposes.
+During trial validation, the module reads data from an input and sends validation requests to a webservice selected
+in theConnection API combo-box. In Inspire Designer the data are all processed as valid, and a summarization
+of validation results is displayed in Quadient Cloud.
+In Inspire Designer, no corrections or modifications of processed data is performed.
+NOTE In scoring trial, only theInfuse US Address Correction (CASS) webservice can be selected in the
+Connection API combo-box.
+5.4.2 Validation Processing Tab
+This tab sets validation processing properties and appears only for some of the services selected from theCon-
+nection API combo-box on theGeneral tab.
+In addition, its content changes depending on the selected service:
+● Options Description
+The following options appear if theInfuse International Address Correction (IAC) service is selected from
+the Connection API combo-box on theGeneral tab.
+Processing mode Sends validation requests synchronously or asynchronously.
+○ Asynchronous – Processes requests at once without waiting for the results. This makes it more
+suited for large jobs.
+Large requests are split as set by theAddresses per asynchronous request option.
+○ Synchronous – Processes requests individually, i.e. a request can be sent only after the results
+for the previous request are returned.
+Large requests are split as set by theAddresses per synchronous request option.
+○ Auto – Processes requests synchronously if the number of addresses in requests does not exceed
+the Asynchronous threshold.
+If the number of addresses is higher, requests are processed asynchronously. Requests are split
+as defined by theAddresses per asynchronous requestand Addresses per synchronous request.
+5 Data Processing Modules | 236
+5.4 Address Validation Module
+--- PAGE 252 ---
+Asynchronous threshold Processes requests asynchronously if the number of addresses in requests
+exceeds the set threshold.
+Addresses per asynchronous request Splits large requests forAsynchronous processing based on the
+defined value.
+Addresses per synchronous request Splits large requests forSynchronous processing based on the
+defined value.
+Processing timeout (s) Sets a timeout for processing requests (in seconds).
+By setting a longer timeout, you can prevent timeout errors encountered when processing large syn-
+chronous requests. For asynchronous requests, this option does not typically need to be set.
+This is only applicable on Windows.
+NOTE Results can differ for synchronous and asynchronous processing.
+● Options Description
+The following options appear for these services selected from theConnection API combo-box on the
+General tab:Infuse US Change Of Address (NCOALink) , Infuse US Address Correction (CASS) , Infuse UK
+Deceased, Infuse UK Do Not Mail , Infuse UK Change Of Address (UK NCOA) , Infuse UK NCOA Flagged
+and Infuse UK Address Correction (UK CASS) .
+Addresses per request Splits large requests for processing based on the specified value.
+Processing timeout (s) Sets a timeout for processing requests (in seconds).
+By setting a longer timeout, you can prevent timeout errors encountered when processing large syn-
+chronous requests. For asynchronous requests, this option does not typically need to be set.
+This is only applicable on Windows.
+5 Data Processing Modules | 237
+5.4 Address Validation Module
+--- PAGE 253 ---
+5.4.3 Data Mapping Tab
+This tab maps custom input data structure containing addresses to the data structure, and the data returned by
+the service to an output data structure.
+The list of availableService Fields changes depending on the webservice selected forConnection API on the
+General tab.
+NOTE If one of theMailRoomoptions is selected inConnection API, the addresses that are being validated
+may only contain characters within the ASCII range.
+If you map a field for one webservice and then select a different one for which the field is not available,
+then simply create a new field (by clicking on the <+> sign) with the identical name and the original field's
+mapping will be applied. In other words, once you map a field, information about the mapping is preserved.
+Similarly, if you create mapping for thePostCode field and then change the webservice, for which there
+is only theZipCode field, the original mapping will be kept and applied.
+Options Description
+Data structure Selects the data source containing addresses which is connected to the Address Validation
+module input.
+Default country Defines a country which will be added to the validated addresses if theCountry service field
+is not set in the table.
+NOTE If you selectInfuse International Address Correction (IAC) for Connection API on theGeneral
+tab and theCountry is not set or is missing in the data source, then theDefault country will be used.
+5 Data Processing Modules | 238
+5.4 Address Validation Module
+--- PAGE 254 ---
+Service Field Depending on the service selected fromConnection API on theGeneral tab, relevant fields in the
+data structure are listed to which you map the input data structure. These fields are processed when valid-
+ating addresses.
+You can add further data fields by clicking on
+Create New.
+Documentation for the individual fields can be found athttps://support.satorisoftware.com/infuse-web-ser-
+vices/api.html
+ .
+Input Data Field Maps fields in your input data structure to the service fields. The data in those fields will then
+be processed in validation requests.
+Output Data Field Maps values returned by the service to an output field structure which you will use further
+in the workflow.
+In case you map the same fields to both input and output, the returned values (potentially changed by the
+service) will replace the original input values. If you map different fields to the output fields (e.g. create new
+fields), the original data will remain unchanged.
+5.4.4 Budget Tab
+This tab sets a budget for the selected UK services (except forInfuse UK Address Correction (UK CASS) ). By
+setting up a budget, you can determine an amount of money which can be spent on the address validation pro-
+cessing. The tab only appears for the following services selected from theConnection API combo-box on the
+General tab:
+● Infuse UK Deceased
+● Infuse UK Do Not Mail
+● Infuse UK Change Of Address (UK NCOA)
+● Infuse UK NCOA Flagged
+5 Data Processing Modules | 239
+5.4 Address Validation Module
+--- PAGE 255 ---
+Options Description
+Use budget If selected, the budget settings will be taken into consideration during processing.
+Budget (in British Pounds)
+Fixed Specifies the budget amount that can be spent.
+From data Selects a variable of Int, Int 64 or Double data-type controlling the budget.
+Quote report Selects if and where a report containing the quote will be generated and saved:
+● Do not generate - Quote report is not generated.
+● Generate to fixed path - Saves the quote report to the entered location.
+● Generate to variable path - Saves the quote report to the location returned by a variable selected
+from the combo-box.
+NOTE Content of the report changes depending on the webservice selected from theConnection
+API combo-box.
+5.4.5 Result Filter Tab
+This tab filters data based on the available conditions.
+The list of available result codes changes depending on the service selected forConnection API on theGeneral
+tab.
+5 Data Processing Modules | 240
+5.4 Address Validation Module
+--- PAGE 256 ---
+For the description of the individual fields and their values, see the Quadient Data Services API Reference atAPI
+Reference
+ .
+Options Description
+Result Code Lists state codes returned by the service for each address upon processing requests.
+Description Specifies meaning of the given result code.
+Filter Filters addresses based on their states.
+● Accept – Passes addresses in the respective state to the first module output, e.g. to aLayout module.
+● Reject – Passes addresses in the respective state to the second module output.
+5.4.6 Advanced Tab
+This tab sets advanced options. These options change depending on the service selected fromConnection API
+on theGeneral tab.
+For the description of the individual fields and their values, see the Quadient Data Services API Reference atAPI
+Reference
+ .
+5 Data Processing Modules | 241
+5.4 Address Validation Module
+--- PAGE 257 ---
+5.5 AFP Index Module
+See also:
+How to Use the AFP Index Module
+The AFP Index module can read the TLE (Tag Logical Element) index, NOP (No Operation Performed) comments
+and Medium Maps from an AFP file and use them to create an array in the data so that their values can be used
+in the Layout design.
+5 Data Processing Modules | 242
+5.5 AFP Index Module
+--- PAGE 258 ---
+EXAMPLE If the field that contains the AFP file name is calledAFPfile (as in the screenshot at the start
+of this section), then a new array will be created as shown here:
+The above screenshot shows a view of the data structure immediately after the AFP Index module. You
+can see that the following arrays were created:
+● AFPfileIndex named according to the valueAFPfileIndex in theGenerated array edit-box
+● AFPfileOther named according to the valueAFPfileOther in theGenerated node edit-box
+An example of use for this module can be found in the sectionHow to Use the AFP Index Module.
+Options Description
+Input Data
+Structure Displays the current structure of the data received into the module.
+Selecting a field here determines that it is the field that contains the AFP file name from which the index
+should be read.
+The above screenshot shows just one possible selection of field (AFPfile) but there may be many to
+choose from depending on the data input. You can only select one field at a time.
+Type Displays the current data-type of each of the listed fields.
+Only fields of string or binary data-type can be selected.
+5 Data Processing Modules | 243
+5.5 AFP Index Module
+--- PAGE 259 ---
+EXAMPLE The Param Input module can be used to create a field of string data-type that identifies
+the path to an AFP file.
+Then, that file name could be used in both this module and theInspire Native module in order to import
+both the AFP index and the AFP pages together.
+Generated array Names the array that will be created in the data.
+The field becomes editable, when a string or binary type variable is selected. A suggested name based on
+the field location will appear by default.
+The array generated from the AFP information is repeated by the pages of the AFP file (i.e. one record = one
+page) and contains a set of fields that correspond to its structure. Of these fields, two are always present
+on the first level:
+● Page – Returns the page number from the AFP file.
+● PageGroupBegin – Indicates whether the page is the first of any group defined in the AFP file by re-
+turning a Boolean value.
+Generated node Names the array that will contain all non-document NOP comments (those that are outside
+the Document definition in an AFP file).
+The array will contain:
+● the Data variable containing the content of the non-document NOPs,
+● the Document variable containing a number defining the position of the non-document NOPs in relation
+to Document definitions:
+○ 0 – the NOP comment is before the first Document definition,
+○ 1 – the NOP comment is after the first Document definition,
+○ 2 – the NOP comment is after the second Document definition,
+○ etc.
+The following tabs determine what else should be read in to the workflow from the AFP file:
+● Index tab
+● Medium Maps tab
+5 Data Processing Modules | 244
+5.5 AFP Index Module
+--- PAGE 260 ---
+5.5.1 Index Tab
+Options Description
+TLEs The options here relate to any TLE index that can be read from an AFP file.
+The Tagged Logical Element (TLE) index is a feature of the AFP file format that can also be displayed in an
+AFP viewer, identifying and allowing navigation through its pages and different groupings of those pages.
+It can be helpful to import this data for use in a workflow. For example, if the pages of an AFP file are indexed
+by different account numbers you could use those account numbers in a new layout design.
+Examine TLEs If checked, TLEs that are in the AFP file structure will be read into the workflow to appear
+in the data structure.
+Overwrite encoding of TLEs with If checked, the original encoding of the TLE index will be decoded with
+the codec selected in theEncoding combo-box. If left unchecked, the original encoding (which is defined
+in the AFP file) will be used.
+See the separate sectionText Encoding for a description of theEncoding combo-box.
+A new dependent array is generated from the TLEs and contains two fields:
+● TLE / AttributeName – Returns the title of any indexing attribute for the AFP page, e.g.Client Surname.
+● TLE / AttributeValue – Returns the index value for the AFP page, e.g.Smith.
+NOPs The options here relate to NOP comments that can also be read from an AFP file.
+Examine NOPs If checked, NOP comments that are in the AFP file structure (and relate to a particular page)
+will also be read into the workflow to appear in the data structure.
+A NOP comment is regarded as being related to a page if it is immediately before or within the page
+definition.
+Further select the correct encoding for the NOPs (that one which was used originally for the comments)
+in theEncoding combo-box. See the separate sectionText Encoding for a description of theEncoding
+combo-box.
+A new dependent array is generated from the NOPs containing the field NOP / Data which returns any
+NOP comment added to AFP pages.
+5 Data Processing Modules | 245
+5.5 AFP Index Module

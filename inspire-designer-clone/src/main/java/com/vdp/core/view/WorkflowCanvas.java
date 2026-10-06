@@ -4,6 +4,7 @@ import com.vdp.core.model.BaseDataInputModule;
 import com.vdp.core.model.DataFilterModule;
 import com.vdp.core.model.DataGeneratorModule;
 import com.vdp.core.model.DataInputModule;
+import com.vdp.core.model.DataConcatenatorModule;
 import com.vdp.core.model.DataSorterModule;
 import com.vdp.core.model.HttpJsonDataInputModule;
 import com.vdp.core.model.InspireModule;
@@ -283,12 +284,13 @@ final class WorkflowCanvas extends JPanel {
             case "HTTP JSON Input" -> new HttpJsonDataInputModule();
             case "Data Filter"     -> new DataFilterModule();
             case "Data Sorter"     -> new DataSorterModule();
+            case "Data Concatenator" -> new DataConcatenatorModule();
             default -> throw new IllegalArgumentException("Module not implemented: " + type);
         };
     }
 
     private boolean isProcessingModule(String type) {
-        return type.equals("Data Filter") || type.equals("Data Sorter");
+        return type.equals("Data Filter") || type.equals("Data Sorter") || type.equals("Data Concatenator");
     }
 
     // ── Node interaction ──────────────────────────────────────────────────────
