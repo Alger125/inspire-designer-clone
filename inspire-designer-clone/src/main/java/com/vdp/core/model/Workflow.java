@@ -92,8 +92,24 @@ public class Workflow {
         return connection;
     }
 
-    public void removeConnection(WorkflowConnection connection) {
-        connections.remove(connection);
+    public static final class ConnectionMemento {
+        private final WorkflowConnection connection;
+        private ConnectionMemento(WorkflowConnection connection) {
+            this.connection = connection;
+        }
+    }
+
+    public void restoreConnection(ConnectionMemento memento) {
+        if (memento != null && !connections.contains(memento.connection)) {
+            connections.add(memento.connection);
+        }
+    }
+
+    public ConnectionMemento removeConnection(WorkflowConnection connection) {
+        if (connections.remove(connection)) {
+            return new ConnectionMemento(connection);
+        }
+        return null;
     }
 
     public void cleanInvalidConnections() {

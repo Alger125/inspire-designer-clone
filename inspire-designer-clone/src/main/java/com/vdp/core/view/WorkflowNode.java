@@ -34,7 +34,7 @@ final class WorkflowNode extends JComponent {
         setToolTipText(moduleType);
     }
 
-    InspireModule getModule() { return module; }
+    public InspireModule getModule() { return module; }
     boolean acceptsInput() { return !module.getInputPorts().isEmpty(); }
     void setNodeSelected(boolean value) { selected = value; repaint(); }
 
