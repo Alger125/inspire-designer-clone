@@ -57,7 +57,10 @@ final class WorkflowCanvas extends JPanel {
     private WorkflowNode connectingSource;
     private Port connectingSourcePort;
     private final Set<WorkflowNode> selectedNodes = new LinkedHashSet<>();
+    private WorkflowNode primarySelectedNode;
     private WorkflowConnection selectedConnection;
+    private java.util.Map<WorkflowNode, java.awt.Point> dragInitialPositions;
+    private java.awt.Point dragStartCanvas;
     private java.awt.Rectangle selectionRect;
     private java.awt.Point rubberbandStart;
     private final Set<WorkflowNode> rubberbandInitialSelection = new java.util.LinkedHashSet<>();
@@ -223,7 +226,7 @@ final class WorkflowCanvas extends JPanel {
 
     /** Returns which modules are selected (used by runProof). */
     String getSelectedModuleId() {
-        return selectedNodes.isEmpty() ? null : selectedNodes.iterator().next().getModule().getId();
+        return primarySelectedNode == null ? null : primarySelectedNode.getModule().getId();
     }
 
     /** Returns a snapshot of palette-type strings by module id. */
@@ -397,7 +400,16 @@ final class WorkflowCanvas extends JPanel {
                     connectionCursor = SwingUtilities.convertPoint(
                             node, event.getPoint(), WorkflowCanvas.this);
                 } else {
-                    dragOffset = event.getPoint();
+                    if (selectedNodes.contains(node)) {
+                        dragStartCanvas = SwingUtilities.convertPoint(node, event.getPoint(), WorkflowCanvas.this);
+                        dragInitialPositions = new java.util.HashMap<>();
+                        for (WorkflowNode n : selectedNodes) {
+                            dragInitialPositions.put(n, n.getLocation());
+                        }
+                    } else {
+                        dragStartCanvas = null;
+                        dragInitialPositions = null;
+                    }
                 }
             }
 
@@ -406,17 +418,26 @@ final class WorkflowCanvas extends JPanel {
                 if (connectingSource == node) {
                     connectionCursor = SwingUtilities.convertPoint(
                             node, event.getPoint(), WorkflowCanvas.this);
-                } else if (dragOffset != null) {
-                    Point canvas = SwingUtilities.convertPoint(
+                } else if (dragStartCanvas != null && dragInitialPositions != null) {
+                    Point currentCanvas = SwingUtilities.convertPoint(
                             node, event.getPoint(), WorkflowCanvas.this);
-                    int newX = Math.max(0, canvas.x - dragOffset.x);
-                    int newY = Math.max(55, canvas.y - dragOffset.y);
-                    int dx = newX - node.getX();
-                    int dy = newY - node.getY();
-                    if (dx != 0 || dy != 0) {
-                        for (WorkflowNode n : selectedNodes) {
-                            n.setLocation(Math.max(0, n.getX() + dx), Math.max(55, n.getY() + dy));
-                        }
+                    int dx = currentCanvas.x - dragStartCanvas.x;
+                    int dy = currentCanvas.y - dragStartCanvas.y;
+                    
+                    int minAllowedDx = Integer.MIN_VALUE;
+                    int minAllowedDy = Integer.MIN_VALUE;
+                    for (java.util.Map.Entry<WorkflowNode, Point> entry : dragInitialPositions.entrySet()) {
+                        int allowedDx = 0 - entry.getValue().x;
+                        int allowedDy = 55 - entry.getValue().y;
+                        if (allowedDx > minAllowedDx) minAllowedDx = allowedDx;
+                        if (allowedDy > minAllowedDy) minAllowedDy = allowedDy;
+                    }
+                    
+                    int finalDx = Math.max(dx, minAllowedDx);
+                    int finalDy = Math.max(dy, minAllowedDy);
+                    
+                    for (java.util.Map.Entry<WorkflowNode, Point> entry : dragInitialPositions.entrySet()) {
+                        entry.getKey().setLocation(entry.getValue().x + finalDx, entry.getValue().y + finalDy);
                     }
                 }
                 repaint();
@@ -429,7 +450,8 @@ final class WorkflowCanvas extends JPanel {
                             SwingUtilities.convertPoint(
                                     node, event.getPoint(), WorkflowCanvas.this));
                 }
-                dragOffset = null;
+                dragStartCanvas = null;
+                dragInitialPositions = null;
             }
 
             @Override
@@ -513,6 +535,7 @@ final class WorkflowCanvas extends JPanel {
 
     private void selectOnly(WorkflowNode selected) {
         selectedNodes.clear();
+        primarySelectedNode = selected;
         if (selected != null) {
             selectedNodes.add(selected);
         }
@@ -523,8 +546,12 @@ final class WorkflowCanvas extends JPanel {
     private void toggleSelection(WorkflowNode node) {
         if (selectedNodes.contains(node)) {
             selectedNodes.remove(node);
+            if (primarySelectedNode == node) {
+                primarySelectedNode = selectedNodes.isEmpty() ? null : selectedNodes.iterator().next();
+            }
         } else {
             selectedNodes.add(node);
+            primarySelectedNode = node;
         }
         selectedConnection = null;
         updateNodesSelectionState();
@@ -532,11 +559,15 @@ final class WorkflowCanvas extends JPanel {
 
     private void clearSelection() {
         selectedNodes.clear();
+        primarySelectedNode = null;
         selectedConnection = null;
         updateNodesSelectionState();
     }
 
     private void updateNodesSelectionState() {
+        if (primarySelectedNode == null || !selectedNodes.contains(primarySelectedNode)) {
+            primarySelectedNode = selectedNodes.isEmpty() ? null : selectedNodes.iterator().next();
+        }
         for (Component comp : getComponents()) {
             if (comp instanceof WorkflowNode node) {
                 node.setNodeSelected(selectedNodes.contains(node));
@@ -562,8 +593,12 @@ final class WorkflowCanvas extends JPanel {
 
         menu.addSeparator();
 
-        JMenuItem delete = new JMenuItem("Delete Module");
-        delete.addActionListener(event -> removeNode(node));
+        JMenuItem delete = new JMenuItem(selectedNodes.size() > 1 ? "Delete Selected Modules" : "Delete Module");
+        delete.addActionListener(event -> {
+            for (WorkflowNode n : new java.util.ArrayList<>(selectedNodes)) {
+                removeNode(n);
+            }
+        });
         menu.add(delete);
 
         menu.addSeparator();
@@ -612,6 +647,9 @@ final class WorkflowCanvas extends JPanel {
 
     private void removeNode(WorkflowNode node) {
         selectedNodes.remove(node);
+        if (primarySelectedNode == node) {
+            primarySelectedNode = selectedNodes.isEmpty() ? null : selectedNodes.iterator().next();
+        }
         moduleTypes.remove(node.getModule().getId());
         workflow.removeModule(node.getModule());
         remove(node);
@@ -713,7 +751,11 @@ final class WorkflowCanvas extends JPanel {
         removeAll();
         moduleTypes.clear();
         selectedNodes.clear();
+        primarySelectedNode = null;
         selectedConnection = null;
+        selectionRect = null;
+        rubberbandStart = null;
+        rubberbandInitialSelection.clear();
         connectingSource = null;
         connectionCursor = null;
         zoomFactor      = 1.0;
