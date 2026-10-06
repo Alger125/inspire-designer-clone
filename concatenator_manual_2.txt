@@ -1,0 +1,1164 @@
+--- PAGE 261 ---
+NOTE Because NOPs are often encoded in differing ways (their values can be text or data), not all
+values have to be readable.
+5.5.2 Medium Maps Tab
+Medium Maps are AFP data that describe how the pages are arranged in an AFP file.
+Options Description
+Show Medium Map name If checked, reads the Medium Map name of each page into the workflow to create
+a corresponding data field.
+A separate Boolean field MediumMapBegin is also created which returns true (1) if the invoke command of
+the Medium Map is read on a particular page. If the invoke command is present it indicates that the Medium
+Map is different from the previous page.
+Alternate Medium Map name If checked, appends the MediumMapBegin value to the Medium Map name,
+therefore creating only one field as opposed to the two fields that are created when onlyShow Medium Map
+name is checked.
+Enable Medium Map info Enables the options described below.
+Medium Map Info
+Duplex / N-Up / Output Tray / Medium Source / Finishing If checked, the corresponding types of Medium
+Map info will be read into the workflow to create data fields in the generated array.
+Exceptions are:Output Tray corresponds to MediaDestination andMedium Source corresponds to Me-
+diaSource.
+5 Data Processing Modules | 246
+5.5 AFP Index Module
+--- PAGE 262 ---
+5.6 Check21 Reader Module
+The Check21 Reader module is used for parsing data containing information about bank checks (scanned images
+and other data) saved in Common Output Format (COF) images files.
+In the module's GUI, select from your input data a variable that contains the path to the COF image file (a string
+variable) or a binary variable containing a COF file.
+Options Description
+Generated array Names the array that will contain variables extracted from the image file. The field becomes
+editable, when a string or binary type variable is selected. Automatically, a name composed of the input
+variable's names appended with the string "Image" is suggested.
+The module extracts data from the file, recognizes and creates the following variables:
+● ItemData – Contains the database information for the database row corresponding to a given record.
+● Image – Contains the image itself in binary format.
+● ViewSide – Indicates the front or back face of the item (bank check). The possible values are Front and
+Back.
+● ViewType – Indicates the image format type. The possible values are IOCAGray, IOCABinary, TIFF, JPEG,
+and TIFFG4. Other image types are not supported.
+These variables are available in the workflow after this module.
+5 Data Processing Modules | 247
+5.6 Check21 Reader Module
+--- PAGE 263 ---
+5.7 Data Add Module
+See also:
+Data Merging Modules Comparison
+The Data Add module combines two or more data files. It differs from1-Many Merger inasmuch that the added
+data is not merged with the other data. The resulting data arrays are in parallel and independent of each other:
+there is no connection between the sets of data.
+Even when there is a Data Add with disconnected data inputs, it does not prevent the workflow from being further
+processed.
+EXAMPLE This module can be used to connect aParam Input module to a workflow.
+Options Description
+Input count Sets the the number of connectable data inputs. The maximum count is 100.
+5.8 Data Cacher Module
+The Data Cacher module shortens processing time by saving data that is used repeatedly to a unique (TSD) file
+so that it can be reused as needed.
+5 Data Processing Modules | 248
+5.7 Data Add Module
+--- PAGE 264 ---
+You can create a cache for Proof or for Production. To do this:
+1. Place the Data Cacher module in the Workflow and double-click on the module's icon to display the Data
+Cacher panel.
+2. Right-click on theDefault cache field to display the context menu.
+3. (optional) SelectAdd Cache if you want to specify the name and location of a previously created TSD file.
+The path can be edited after pressing the <F2> key.
+You can also specify the path to the TSD file via theWorkflow Parameters window-pane (the parameter
+named Cache File Location) or theInspire Production Console (Workflow Module Parameter-dif<Module→
+Name>).
+NOTE A TSD file is always created when output is generated. If you place a Data Output module
+within the workflow (after Data Input, Data Transformers, etc.), that TSD file can be added to the
+Data Cacher module.
+4. Select Cache for Proof or Cache for Production from the context menu.
+The default cache is stored in the Cache subdirectory in the Inspire Designer folder.
+Hover the mouse pointer over a cache's name to display its location in a tooltip.
+Options Description
+Create cache Creates a new cache.
+Remove cache Removes the cache.
+5 Data Processing Modules | 249
+5.8 Data Cacher Module
+--- PAGE 265 ---
+Clear cache Clears the cache.
+Cache for Proof Marks the cache for Proof.
+Cache for Production Marks the cache for Production.
+The three question marks in theSize column are replaced by the cache size value (in kB) after the job is run and
+the TSD file is created.
+NOTE If you make changes in the workflow before the Data Cacher module, you will need to clear the
+cache and create it again.
+5.9 Data Caser Module
+The Data Caser module is an advancedData Filter. The module has N+1 output links, where N is the number of
+defined conditions. For example, if you define 3 conditions in the Data Caser module, there will be 4 output links
+(like in the screenshot below). The extra link (bottom-most) allows the data that does not fulfill any of the defined
+condition(s) to pass through.
+5 Data Processing Modules | 250
+5.9 Data Caser Module
+--- PAGE 266 ---
+Double-clicking on the module icon displays the module's dialog. Opening theCondition field array combo-box
+displays the arrays available in the data coming from a connecteddata input module.
+To define the filtering conditions, do the following:
+1. Select the array in theCondition field array .
+2. Click on theCreate New
+ icon, that inserts a new line in theInline Script column.
+3. In the new line, click on the3 Dots
+ icon. This opens theSimple Expression dialog.
+4. Define the expression(s) for your condition(s) by selecting the required values from the combo-boxes. Click
+on theAdd Condition
+ icon to define more conditions.
+5. Click on theGo To Script Editor button to open theScript Editor.
+NOTE To always open Script Editor directly, disable theOpen the Simple Expression check-box
+in theWorkflow Options dialog.
+5 Data Processing Modules | 251
+5.9 Data Caser Module
+--- PAGE 267 ---
+5.10 Data Combiner Module
+See also:
+Data Merging Modules Comparison
+Data Combiner combines the fields of two inputs into the same array without matching the records, i.e. the first
+record from input A (top connector) will be combined with the first record from input B (bottom connector) and
+the second with second, etc.
+The intention is to combine sets of data with the same number of records when it is known that both sets are in
+the desired order. If the number of records differs, the resulting number of records is that of the input with the
+highest number of records, i.e. no records are lost. The fields from the input with less records are left empty for
+the remaining combined records.
+If there are fields with the same name in both inputs, they will be merged into a single field with that same name.
+In that field, the values in the fields from input B will overwrite the values coming from input A, unless there are
+less records in input B than input A, in which case all the values from input B will be used first, succeeded by records
+with values from input A.
+If you know that it is OK to overwrite a field from A because the values are the same in both inputs, you should
+also make sure that the records are in the same order, e.g. by sorting the fields using theData Sorter module. If
+you do not want those fields of the same name to be merged and overwritten, use theData Field Renamer
+module first to rename one of the fields.
+EXAMPLE If input A has 12 records with the following fields:
+And input B has 5 records with the following fields:
+5 Data Processing Modules | 252
+5.10 Data Combiner Module
+--- PAGE 268 ---
+The resulting data will have 12 records with the following fields:
+Notice how the field Id was in both inputs, but in the output there is only one Id field. The values in this
+field have not been matched (the way they can be with the1-1 Merger module); instead, the first 5 records
+will contain values from input B and the remaining 7 records will contain values from input A.
+5.11 Data Concatenator Module
+See also:
+Data Merging Modules Comparison
+Data Concatenator places the contents of input data sources together, one directly after another. Data may come
+from different input modules or from the same one.
+Inside the module, theNumber of inputs selection box sets the number of data sources. The maximum count is
+100.
+5 Data Processing Modules | 253
+5.11 Data Concatenator Module
+--- PAGE 269 ---
+This module is typically used when the input data is split into multiple files with the same structure. Data Concat-
+enator then joins the contents of the fields with the same name.
+EXAMPLE Below there are threeData Input modules (marked by different colors) with input files whose
+arrays follow the same structure.
+We would like to join the content of these three input files together.
+Inside the Data Concatenator, we set theNumber of inputs to 3 and connect the data inputs.
+In the module, the input files are displayed in the following way.
+To connect the first two files, we need to select the arrays that should be concatenated (see the blue se-
+lection).
+5 Data Processing Modules | 254
+5.11 Data Concatenator Module
+--- PAGE 270 ---
+Options Description
+Current structure of inputs Displays the initial structure of the first input (if only one input is attached)
+or continuous structure of concatenated data (if multiple inputs are attached).
+Input to attach Displays the structure of the input which is to be attached next.
+After clicking on theGo to the next input
+ icon, theCurrent structure of inputs section already contains
+joined data from the first and second inputs, while theInput to attach section contains the third input
+data file structure.
+As the array in the left field is already selected, we only need to select the array for the third input.
+5 Data Processing Modules | 255
+5.11 Data Concatenator Module
+--- PAGE 271 ---
+After the arrays for all the inputs are selected, clickOK.
+NOTE If one or more inputs remain without a selected array, a confirmation dialog appears listing
+the unconnected inputs.
+The resulting structure in Layout looks like this:
+The array is named Records, and its fields contain data from all the joinedData Input modules.
+5.12 Data Field Renamer Module
+5 Data Processing Modules | 256
+5.12 Data Field Renamer Module
+--- PAGE 272 ---
+Data Field Renamer is used for renaming data fields. The module has two panes:
+● on the left, displays the input data structure.
+● on the right, renames the data fields (after which they are shown in blue font.
+The new names will be used in the workflow after this module.
+Options Description
+Auto configure Automatically renames all duplicate data field names (highlighted red in the panel on
+the right), i.e. an underscore and the sequence number are added to the field name.
+Find Next Rename /
+ Find Previous Rename In a large data structure, use these icons to quickly nav-
+igate between the renamed fields.
+5 Data Processing Modules | 257
+5.12 Data Field Renamer Module
+--- PAGE 273 ---
+5.13 Data Filter Module
+Data Filter passes (or keeps from passing) all data that matches a given criterion.
+To filter which records which will pass through this module:
+1. Select the field in the incoming data structure (on the left) that will return values that should match the
+filter criterion.
+2. For Condition, select the criterion for matching the values (being returned by the field selected in step 1)
+to the entry made inValue:
+● None – No condition is set and so all records will pass through this module
+● Equal to – If the returned value is identical toValue.
+● Contains – If the returned value contains theValue.
+● Begins with – If the first characters of the returned value are identical toValue.
+● Smaller than – If the returned value is numerical and smaller thanValue.
+● Bigger than – If the returned value is numerical and larger thanValue.
+● Before – If the returned values is a date (DateTimedata-type) which is earlier thanValue.
+● After – If the returned values is a date (DateTimedata-type) which is later thanValue.
+If the returned value matches the entry made inValue (according to theCondition), then that record will
+pass.
+3. Enter theValues by which you want to filter the data.
+For Equal to, Contains and Begins with, you can also enableAllow multiple values to enter more that one
+text string (or more than one number), each value separated by a comma.
+5 Data Processing Modules | 258
+5.13 Data Filter Module
+--- PAGE 274 ---
+4. Specify whether you want toInvert condition. An inverted condition passes everything but the records
+that are determined by the criterion set in the previous steps .
+5. Repeat steps 1 to 4 for all fields you wish to use to filter the data, i.e. the only records that will pass are
+ones where the returned values for ALL of the select fields meet ALL of the criteria defined here.
+Checking theCreate else output option adds a second output link to the module. This output link lets the data
+that does not fulfill the defined conditions to pass through and be used, without the need for another data filter.
+In a large data structure use theFind Previous
+ / Find Next
+ icons to quickly locate fields for which a filtering
+condition is set.
+NOTE If selecting records from large databases, we recommend using a combination of Data Filter and
+Data Cacher.
+5.14 Data Group By Module
+Data Group By groups data according to the content of the selected field. It splits the input data into groups using
+a new array which returns one set of records for each value that exists in the selected field.
+EXAMPLE If your data contains fields Name (name of a person) and Town (town or city in which the
+person lives), you could group the data by the Town field so that all people from the same town are returned
+in the same set of records.
+You could then count the number of people in each town (using the Count variable which is automatically
+created for every array) and repeat the pages of the design by the Town field (using theRepeated by
+combo-box on theGeneral tab of the Pages family).
+5 Data Processing Modules | 259
+5.14 Data Group By Module
+--- PAGE 275 ---
+Additionally, you can sort and copy fields up one level within the data structure.
+Options Description
+Data Shows the structure of the data being read into the module.
+Selecting a field from the tree and clicking on theCreate New
+ icon adds it to the Group Fields area on the
+right, which means that the field will be manipulated according to the parameters set in the module.
+You can only select fields on the same level of the same array and each field can only be selected once.
+Group Fields Determines how the data read into the module will be handled and how the selected fields will
+be manipulated. Many of the options relate directly to the sorting of records and their descriptions can be
+found in theData Sorter Module chapter.
+Memory usage Selects what data will be stored within Inspire Designer while it is processing the workflow.
+See the full description in theData Sorter Module chapter.
+Rename parent array to Renames the original array (the direct parent to the selected fields before they
+were read into this module), if required.
+By default, the suggested name entered here is taken from the first field that was selected in this module.
+Grouped array name Names the child array that will be created as a result of the grouping.
+By default, the suggested name entered here is taken from the original array.
+Field Name Lists all the fields whose values will be manipulated.
+5 Data Processing Modules | 260
+5.14 Data Group By Module
+--- PAGE 276 ---
+Sort Type Selects how/if the field should be sorted:
+● Ascending – Sorts from A to Z, 1-9, etc.
+● Descending – Sorts from Z to A, 9-1, etc.
+● None – The fields will not be sorted.
+In most cases, sorting is required for grouping, i.e. when a field also hasYes selected inGroup By. This
+is to make sure that similar values are placed in consecutive records before the records are divided into
+groups.
+EXAMPLE You have records for many people and 6 of them have the surname Smith and you
+want to group the records by the surname.
+Without sorting the records, you may get 6 separate groups of people named Smith (each with
+only one person) if none of the Smiths were in consecutive records.
+Group By Selects whether the field will be grouping the records together.
+It is not necessary to use multiple fields selected in this module for grouping the data, other fields can
+be used to simply sort them and copy them up a level. The intention is to allow secondary manipulations
+to be performed according to other fields within the group, e.g. records are grouped by a client’s surname
+and also sorted by the first name to put them in alphabetical order within the group.
+Move Level Up Selects whether the field will be moved up to the same level as the grouped array.
+Moving up allows you to read the field in a different context, e.g. use the field for calculations that could
+not be performed while the field was at the lower level inside the array.
+Delete Removes the selected field from the list.
+Move Up /
+ Move Down Moves the selected field up or down in the list and, therefore, in the order
+of importance, e.g. for sorting, the field placed the highest in the list will be the primary sorting field.
+5.15 Data Histogram Module
+Data Histogram counts the occurrence of values in the selected fields.
+When the workflow is processed, the values of the selected fields are compared and all matching values are
+counted. The count value is returned by a count field that exists in a new array. This field can then be used as a
+variable in the Layout design or simply as a data output to provide statistics about which records have been
+processed.
+5 Data Processing Modules | 261
+5.15 Data Histogram Module
+--- PAGE 277 ---
+EXAMPLE From the records of many clients, you will produce letters to send to their addresses. Here
+you can create fields that will return values for how many letters were produced for each address.
+This is the final data structure if the Address field was selected in the Data Histogram module:
+You can see that a new Address array has been created based on the originally selected field. The new
+array contains fields which return the value of each matched address and the count for that address.
+Options Description
+The options on this module that are not described in this section are described in the section1-1 Merger Module.
+Field Name Shows the current structure of the data, i.e. which fields are part of each record.
+The selected histogram fields are highlighted with an arrow.
+Field Type Shows the data-type of each field.
+5 Data Processing Modules | 262
+5.15 Data Histogram Module
+--- PAGE 278 ---
+Array name Names the array that will be created.
+Create New Determines that the field that is selected in the data structure will be represented in the
+new array.
+The first field you select will be marked with zero in brackets(0), will be nested at the lowest level of the
+array, and be the one that is counted. You can add other fields to be matched, which will serve as parent
+fields in the data structure.
+It is recommended to select the field with the least common values first, and the one with the most
+common values last. Otherwise, the total count for one of the values could be split between two or more
+parent values.
+Delete Deselects the histogram field.
+EXAMPLE You want to count letters addressed to the same town. In addition, you want to know how
+many are addressed to the same area of that town, i.e. how many have identical ZIP codes.
+As it is less likely that addresses will have the same ZIP code than the same town (many people live in
+the same town but only some of them also have the same ZIP code), you will choose the ZIP code field
+first in the Data Histogram module, e.g.:
+The resulting output data structure will look like this:
+The count for each unique ZIP code is returned together with the value of that ZIP code. These ZIP code
+counts are then grouped together by the town that the ZIP codes belong to.
+5 Data Processing Modules | 263
+5.15 Data Histogram Module
+--- PAGE 279 ---
+5.16 Data Pass Through Module
+The Data Pass Through module letsInspire Interactive Classic
+ to also use Form, Data, and XML DataRaw
+(defined in Inspire Interactive Classic) data input types with input from theData Input module. For more information,
+see theInspire Interactive Classic User Manual
+ .
+In addition,Inspire Interactive
+ uses this module to import (using the-dif<ModuleName> filePath Workflow
+Module Parameter where the data input file needs to have the same structure as the JSON files generated via
+the Data Output module) and produce JSON files. This file format is required when working with Inspire Interactive
+Classic.
+EXAMPLE
+The following are examples of the commands used to:
+● Import a JSON file to this module:
+InspireCLI.exe Workflow.wfd -difPassThrough1 Data.json -e PDF
+● Produce a workflow using the Data Pass Through module as an output module:
+runw Workflow.wfd -o PassThrough1 -dataoutputtype DefinitionInJSON
+The module should be placed into the workflow after adata input module and does not include any user interface.
+You can change the settings by specifying theLocation parameter in theWorkflow Parameters window of the
+Production window, which selects the data input file. The data structure of the file has to be the same as the one
+in the connected data input module. If no file is specified, the module passes through data from the connected
+data input module.
+5.17 Data Precise Module
+Data Precise can transform raw data into a grammatically correct, presentable form. For example, it can translate
+data to upper and lower case, add punctuation and add gender-appropriate titles with respect to names.
+5 Data Processing Modules | 264
+5.16 Data Pass Through Module
+--- PAGE 280 ---
+NOTE
+● This module is not supported by the Mac version of Inspire Designer.
+● This module can be used for English texts only. Data with characters outside of the Latin1 charset
+may get damaged when processed by this module.
+The initial line of data that is fed into the Data Precise module appears in the upper left area. Enhanced fields
+defined in the Data Precise module appear in the lower left area. The output is then sent to the module connected
+to the right of the Data Precise module.
+To add a new enhanced field:
+1. Click on theCreate New
+ icon.
+2. Select the new enhanced field and begin typing to rename it, then select the field type in theEnhance
+combo box on theProperties tab.
+3. For each listed property, select an appropriate value that is suitable for the enhanced field.
+4. In the upper-left area, select the source field that should be linked to the newly created enhanced field,
+and click on theLink Field
+ icon to link the two variables.
+To delete an enhanced field, select it in the lower-left area and click on theDelete
+ icon.
+To change the enhanced field's properties, change the field type in theEnhance combo box on theProperties
+tab, if needed, and select suitable values for all listed properties.
+To change an enhanced field link, select the enhanced field for which the field link is to be changed, select the
+new source field you want to link with the enhanced field, and click on theLink Field
+ icon.
+5 Data Processing Modules | 265
+5.17 Data Precise Module
+--- PAGE 281 ---
+The module has the following tabs:
+● Properties
+● Script
+● Metric Shortening
+● Knowledge Files
+NOTE
+● This module is not supported by the Mac version of Inspire Designer.
+● This module can be used for English text only. Data with characters outside of the Latin1 charset
+may be damaged if it is processed by this module.
+5.17.1 Properties Tab
+The Properties tab selects the field type and defines its enhancement options.
+Options Description
+Enhance Selects the type of the field. Based on the variable type, different enhancement options are available.
+The options are:
+● Name
+● Street
+5 Data Processing Modules | 266
+5.17 Data Precise Module
+--- PAGE 282 ---
+● City
+● JobTitle
+● PhoneNumber
+● Date
+● Auto
+Option Lists the available enhancement options for the field type selected in theEnhance combo-box.
+Value Selects from the values available for the selected enhancement.
+5.17.1.1 Name Properties
+Select this type if the variable contains the name of an individual, the name of a business or any single component
+of an individual’s name.
+CasingFlag
+● None – No casing changes will be made.
+● Upper – All characters will be changed to uppercase.
+● Lower – All characters will be changed to lowercase.
+● UpperLower – The characters will be changed to uppercase and lowercase as appropriate based on
+algorithms and theKnowledge Base.
+PunctuationFlag
+● None – No punctuation changes will be made.
+● AddPunctuation – Punctuation will be added based on grammar rules and theKnowledge Base.
+● RemPunctuation – All punctuation characters (‘.’ and ‘,’) will be removed.
+DiacriticFlag
+● None – No diacritic (accent marks) changes will be made.
+● AddDiacritics – Diacritics will be added to the words for which there is a matchingKnowledge Base
+entry and removed from words for which there is none.
+● RemDiacritics– Diacritics will be removed from all words (the letter portion of the character will remain).
+FormatFlag
+● None – No special formatting will be performed.
+● MatchKey – The variable will be formatted to be used as a matchkey.
+● Plural – The plural forms of the names (last name, first name) will be used (Smiths, Joneses).
+● Plural First Name – The plural form of the first name will be used (Johns).
+● Plural Last Name – The plural form of the last name will be used (Smiths).
+5 Data Processing Modules | 267
+5.17 Data Precise Module
+--- PAGE 283 ---
+● Possessive – The possessive forms of names (last name, first name) will be used (Smith’s, Jones’).
+● Possessive First Name – The possessive form of the first name will be used (John’s).
+● Possessive Last Name – The possessive form of the last name will be used (Smith’s).
+● Formal – Formal salutation formatting will be used (Mr Smith, Ms Jones, Pat Smith, IBM Corporation).
+● Informal – Informal salutation formatting will be used when a nickname is specified in the matching
+Knowledge Base entry. Otherwise, the first name will be used (Bill, Pat, Reginald).
+● Initials – Initials will be used, consisting of the first letter of the first name, the first letter of the middle
+name, and the first letter of the last name.
+TitleFlag
+● None – No changes will be made regarding the title of respect.
+● AddTitle – A title of respect, specified in theKnowledge Base, will be added to names for which a title
+of respect does not already exist and the gender can be determined.
+● RemoveTitle – The title of respect will be removed from the name.
+SpacesFlag
+● Remove None – Any leading and trailing spaces will remain unchanged.
+● Remove All Extraneous – All leading and trailing spaces will be removed.
+● Remove Leading – Only the leading spaces will be removed.
+ParseFlag
+● Parse – The DataPrecise Parser will be used to identify allName components (e.g. title, first name,
+surname) contained in the variable. This option should only be used for multi-component variables.
+● NoParse – The variable will be considered as a single component variable.
+NameType
+● NoType – The NameType is unknown.
+● Business – The variable will contain only business names.
+● Individual – The variable will contain only individual names.
+● BusinessAndIndividual – The variable will contain both business names and individual names.
+OffensiveScreening Searches for offensive words in the arguments. "Offensive" means a word rated as Flippant,
+PG, G, R or X:
+● G – Not offensive.
+● PG – Contains mildly offensive words such as childish, bodily-function-describing words.
+● R – Contains vulgar words.
+● X – Contains insulting words or ethnic slurs.
+● Flipant – Contains names of fictional characters such as mickey mouse.
+5 Data Processing Modules | 268
+5.17 Data Precise Module
+--- PAGE 284 ---
+● NoOffensiveScreening – Offensive Screening will not be performed.
+● NoParse – The argument will not be parsed to its elementary components and will be flagged as
+"Unparsed".
+● Parse – An attempt will be made to parse the argument to its elementary components and it will be
+flagged as "Parsed" or "Unparsed" based upon parsing result.
+● DeleteOffensiveWords – Same asParse except all words determined to be offensive will be replaced
+with a string of asterisks (*).
+DesiredComponent
+● All – All name components will be included in the output variable.
+● TitleofRespect – Only theTitleofRespect component will be included.
+● FirstName – Only theFirstName component will be included.
+● MiddleName – Only theMiddleName component will be included.
+● LastName – Only theLastName component will be included.
+● MaturitySuffix – Only theMaturitySuffix component will be included.
+● ProfessionalSuffix – Only theProfessionalSuffix component will be included.
+Country Code The variable will be processed using aKnowledge Base according to the selected country.
+Language Code The variable will be processed using aKnowledge Base according to the selected language.
+Input Component Sequence Specifies the order in which the components will be placed within the input variable.
+The default order is: 0 1 2 3 4 5 6 7 8 9. Click on theBrowse
+ icon to change the order. There must be as
+many digits as there are components in the input variable, and each digit can only be used once. Valid se-
+quences are, e.g. 012345 – the natural sequence; 312450 – a last name sequence. The components’ codes
+are: 0 – Title of Respect (Mr, MS, Dr, etc.), 1 – First Name, 2 – Middle Name, 3 – Last Name, 4 – Maturity Suffix
+(Jr, Sr, etc.), 5 – Professional Suffix (PhD, MD, etc.).
+Output Component Sequence Specifies the order in which the components will be placed in the output variable.
+The default order and the components are the same as for theInput Component Sequence option above.
+Shortening Component Sequence Specifies the order in which the components will be eliminated when the
+data to be stored in a variable exceeds the capacity (length) of the variable. The default order is: 5 0 2 4 1
+3. For the explanation of the components’ codes, see theInput Component Sequence option above.
+5 Data Processing Modules | 269
+5.17 Data Precise Module
+--- PAGE 285 ---
+5.17.1.2 Street Properties
+Select this type if the variable contains any type of a street address line.
+CasingFlag / PunctuationFlag / DiacriticFlag / SpacesFlag / ParseFlag / OffensiveScreening / Country Code /
+Language Code / Output Component Sequence / Shortening Component Sequence See Name Properties
+for the descriptions of these options.
+FormatFlag
+● None – No special formatting will be performed.
+● MatchKey – The variable will be formatted to be used as a matchkey.
+● AbrevAddress – USPS standard address abbreviations will be used to format the street address.
+DesiredComponent
+● All – All street address components will be included in the output variable.
+● PrimaryAddressNumber – Only thePrimaryAddressNumber component will be included.
+● PreDirectional – Only thePreDirectional component will be included.
+● StreetPrefix – Only theStreetPrefix component will be included.
+● StreetName – Only theStreetName component will be included.
+● StreetSuffix – Only theStreetSuffix component will be included.
+● PostDirectional – Only thePostDirectional component will be included.
+● SecondaryAddressIdentifier – Only theSecondaryAddressIdentifier component will be included.
+● SecondaryAddressNumber – Only theSecondaryAddressNumber component will be included.
+● Urbanization – TheUrbanization component will be included.
+5.17.1.3 City Properties
+Select this type if the variable contains a city state zip address line or any single component of a city line (City,
+State/Province, ZipCode/PostalCode, Country).
+CasingFlag / PunctuationFlag / DiacriticFlag / SpacesFlag / ParseFlag / OffensiveScreening / Country Code /
+Language Code / Output Component Sequence / Shortening Component Sequence See Name Properties
+for the descriptions of these options.
+FormatFlag
+● None – No special formatting will be performed.
+● FullStateName – The State/Province code will be expanded to a full State/Province name.
+5 Data Processing Modules | 270
+5.17 Data Precise Module
+--- PAGE 286 ---
+DesiredComponent
+● All – All city address components will be included in the output variable.
+● City (0) – Only theCity component will be included.
+● State (1) – Only theState component will be included.
+● Zip (2) – Only theZip component will be included.
+● Country (3) – Only theCountry component will be included.
+Output Component Sequence Contains a series of four non-repeating digits (0, 1, 2, 3) which specify the order
+of the city address components in the formatted output.
+Shortening Component Sequence Contains a series of four non-repeating digits (0, 1, 2, 3) which specify the
+order in which the city address components will be eliminated to perform intelligent shortening.
+5.17.1.4 JobTitle Properties
+Select this type if the variable contains a job title or job description.
+CasingFlag / PunctuationFlag / DiacriticFlag / SpacesFlag / OffensiveScreening / Country Code / Language
+Code See Name Properties for the descriptions of these options.
+DesiredComponent
+● All – All components will be included in the output variable.
+5.17.1.5 PhoneNumber Properties
+Select this type if the variable contains a telephone number.
+CasingFlag / PunctuationFlag / DiacriticFlag / SpacesFlag / ParseFlag / OffensiveScreening / Country Code /
+Language Code See Name Properties for the descriptions of these options.
+FormatFlag
+● MatchKey – The variable will be formatted to be used as a matchkey
+● PhoneParens – The area code will be enclosed in parenthesis, e.g. (203)
+● PhoneDashes – The area code will be enclosed in dashes, e.g. -202-
+● PhoneDots – The area code will be enclosed in dots, e.g. .203.
+DesiredComponent
+● All – All components will be included in the output variable.
+● PhoneCountryCode (0) – Only thePhoneCountryCode component will be included.
+● PhoneAreaCode (1) – Only thePhoneAreaCode component will be included.
+5 Data Processing Modules | 271
+5.17 Data Precise Module
+--- PAGE 287 ---
+● PhonePrefix (2) – Only thePhonePrefix component will be included.
+● PhoneNumber (3) – Only thePhoneNumber component will be included.
+Output Component Sequence Contains a series of four non-repeating digits (0, 1, 2, 3) which specify the order
+of the phone number components in the formatted output.
+Shortening Component Sequence Contains a series of four non-repeating digits (0, 1, 2, 3) which specify the
+order in which the phone number components will be eliminated to perform intelligent shortening.
+5.17.1.6 Date Properties
+Select this type if the variable contains a date (YYYYMMDD format).
+CasingFlag / PunctuationFlag / DiacriticFlag / SpacesFlag / ParseFlag / OffensiveScreening / Country Code /
+Language Code / Input Component Sequence See Name Properties for the descriptions of these options.
+FormatFlag
+● None – No special formatting will be performed.
+● MatchKey – The variable will be formatted to be used as a matchkey.
+● Additionally, there are various date formatting options to be applied to the corresponding date data:
+e.g. MMDDYY will produce 041309.
+Desired Component
+● All – All date components will be included in the output variable.
+● Year (0) – Only theYear component will be included.
+● Month (1) – Only theMonth component will be included.
+● Day (2) – Only theDay component will be included.
+Output Component Sequence Contains a series of three non-repeating digits (0, 1, 2) which specify the order
+of the date components in the formatted output.
+Shortening Component Sequence Contains a series of three non-repeating digits (0, 1, 2) which specify the
+order in which the date components will be eliminated to perform intelligent shortening.
+5 Data Processing Modules | 272
+5.17 Data Precise Module
+--- PAGE 288 ---
+5.17.1.7 Auto Properties
+Select this type if the variable will contain Name, Street, and City type data. The specific type will automatically
+be determined by the Data Precise module.
+CasingFlag / PunctuationFlag / DiacriticFlag / SpacesFlag / OffensiveScreening / Country Code / Language
+Code / TitleFlag See Name Properties for the descriptions of these options.
+DiacriticFlag See theName Properties section for the available options and their explanations.
+FormatFlag Applies only toName type data.
+● None – No special formatting will be performed.
+● MatchKey – The variable will be formatted to be used as a matchkey.
+5.17.2 Script Tab
+The Script tab allows you to create scripts which call theDataPrecisefunctionsand DataPrecisecontrolparameters.
+DataPrecise single components of certain types of multi-component variables are available after the function
+call.
+Alongside these scripts, other general scripting methods can be used. See theScripting Methods section for more
+information.
+The options here are the same as in theScript Editor dialog. See the dialog's description for more details.
+5.17.2.1 DataPrecise Functions
+enhanceAuto
+enhanceCity
+enhanceDate
+enhanceJTtl
+enhanceName
+enhanceStreet
+enhanceTNum
+5 Data Processing Modules | 273
+5.17 Data Precise Module
+--- PAGE 289 ---
+5.17.2.2 DataPrecise Control Parameters
+CompDelimIn
+CompDelimOut
+CompSeqIn
+Component
+CompSeqIn
+CompSeqOut
+CompSeqShort
+DPAnclParamPar
+DPCasingFlagPar
+DPComponentType
+DPCountryCodePar
+DPDiacriticFlagPar
+DPEthnicityType
+DPFormatFlagPar
+DPGenderType
+DPLanguageCodePar
+DPLanguageCountryCombinationPar
+DPNameTypePar
+DPOffensiveDispositionFlagPar
+DPOffensiveRatingType
+DPOffensiveScreeningFlagPar
+DPParseFlagPar
+DPPunctuationFlagPar
+DPSpacesFlagPar
+DPTitleFlagPar
+DPTypeType
+5 Data Processing Modules | 274
+5.17 Data Precise Module
+--- PAGE 290 ---
+5.17.2.3 DataPrecise Single Components
+After enhanceName
+FName
+LName
+MName
+MSuffix
+PSuffix
+Title
+After enhanceStreet
+HouseNum
+PreDir
+PostDir
+SecID
+SecNum
+StName
+StPrefix
+StSuffix
+After enhanceCity
+City
+State
+Zip
+Country
+After enhanceTNum
+CountryCode
+AreaCode
+Prefix
+5 Data Processing Modules | 275
+5.17 Data Precise Module
+--- PAGE 291 ---
+Number
+After enhanceDate
+Year
+Month
+Date
+EXAMPLE The following script extends the state code (WI) to a full state name (Wisconsin):
+DPAddressFormatFlagPar=DPAddressFormatFlag.fmtFullStateName;
+String CityStateZip="WI53821";
+String City=enhanceCity(CityStateZip);
+5.17.3 Metric Shortening Tab
+Metric shortening, as it pertains to DataPrecise, is the intelligent shortening of variable data (by elimination of
+components in order of least importance) based upon the amount of horizontal space that the contents of the
+variable will occupy when printed, using the font associated with it in the document.
+The Metric Shortening tab allows you to define all fonts which will be used to print any DataPrecise variable for
+which metric shortening is to be performed.
+Options Description
+Index Displays the index of the font.
+Font Name Selects the font by its name.
+Size Defines the size of the font.
+Style Defines the font style. The options available areNormal and Bold.
+Create new Adds a new font to the list. Select the appropriate font name, size and style values using
+the corresponding drop-downs.
+Delete Deletes the selected font from the list.
+The Index value determined and maintained by Inspire Designer will be used in the script defined on theScript
+tab.
+5 Data Processing Modules | 276
+5.17 Data Precise Module
+--- PAGE 292 ---
+The unit of specification for the Result Length is always in inches.
+EXAMPLE As an example consider the following partial script:
+Name25 = enhanceName(StaticName,(2.5),0);
+Where:
+Name25 – Is the variable which will contain the enhanced shortened data.
+enhanceName – Is the DataPrecise function to enhance names.
+StaticName – Is the source variable containing the data to be enhanced.
+2.5 – Specifies that the enhanced result cannot have more than 2.5 inches.
+0 – Is the index of the font to be used for metric shortening.
+5.17.4 Knowledge Files Tab
+The Knowledge Files tab allows you to override one or more of the default Knowledge Base files used by Data-
+Precise for this workflow. You can select BIN files containing translation rules for the Data Precise module.
+These database files are distributed along with theDataPrecise.dll and they are of various versions. They are
+predefined, only Knowledge Base Administrators can change and recompile the database files. A user only needs
+to set the path to them. Several Data Precise modules can be employed in a Layout, each using a different version
+of the database files.
+If no selection is made, the database files from the folder defined by the CX_DATA system (environment) variable
+will be used automatically.
+Options Description
+Country Code, Language Code Selects the combination of language and country codes, for which the Knowledge
+Base file will be used.
+File Selects the Knowledge Base file.
+5 Data Processing Modules | 277
+5.17 Data Precise Module
+--- PAGE 293 ---
+5.18 Data Remapper Module
+The Data Remapper module redefines data so that it can be read using a new structure that is defined by a
+previously prepared XSD file (XML data definition), a workflow definition (WD) file, or created directly in the
+Output Structure area of the Data Remapper module.
+To remap data:
+1. Place and connect the module at the position in the workflow where you want to redefine the data
+structure
+The current data structure is listed in theInput Structure column.
+2. Click on theOpen
+ icon to import an XSD or WD file with the target data structure, i.e. the structure that
+will define the data after this module.
+The new data structure is listed in theOutput Structure column so that you can see both structures side
+by side.
+You can edit the individual items in the output structure via the icons at the bottom of the window.
+NOTE Alternatively, you can create a new output structure by right-clicking in theOutput Structure
+area and adding new items.
+3. To remap a field, click on it in theInput Structureand drag the connector that appears to the corresponding
+data field in theOutput Structure.
+5 Data Processing Modules | 278
+5.18 Data Remapper Module
+--- PAGE 294 ---
+You can also proceed from theOutput Structure to theInput Structure. It is also possible to map one field
+from the input structure to multiple fields in the output structure, but not vice versa.
+You can only map fields to fields with the same dependency level and data-type. If you try to map fields
+with different levels or types, the connector will be red and will not connect.
+4. Repeat step 3 until all the data fields that you require further in the workflow are mapped to theOutput
+Structure.
+Only the mapped fields will contain data.
+Options Description
+Input Structure Displays the input data structure.
+Output Structure Displays the output data structure.
+In theOutput Structure, you can rename the fields (by right-clicking on the field), add new fields (by right-
+clicking in theOutput Structure area), change the fields' position (by clicking on
+ icons) or delete the
+fields (if the field is linked, only the link will be deleted at first; the node itself will only be deleted if you click
+on the delete icon again).
+You can load a data structure using theOpen
+ icon.
+Synchronize Scroll Bars If selected, one scroll bar is used to navigate the data structures together.
+If deselected, separate scroll bars appear for both data structures. This allows them to be scrolled to
+different positions so that data fields of differing positions can be brought level to each other in the view.
+Scroll bars only appear if the data structure is long enough to require a scroll bar.
+Toggle Connection AssistantIf selected, selecting a parent array automatically connects all the dependent
+fields for which there are corresponding valid fields in theOutput Structure.
+Show All Connectors If selected, all connectors between the data fields are displayed.
+If deselected, only the connections made to the selected field are displayed. This can simplify the view
+if there are many connections that cross paths.
+Connect Connects data fields.
+If a data field is selected in the view, opens the Connect to Field dialog which shows all valid fields that
+the field can be connected to. In the dialog, select a field to connect it.
+Valid fields are those of the same data-type and on the same level of dependency. Optional fields appear
+to have two levels of dependency, but the 'parent' (marked with theOptional
+ icon) is not counted as
+a dependency level but as a gate that allows the field to exist or not.
+This option is also available by right-clicking on a field.
+Disconnect Disconnects selected data fields.
+This option is also available by right-clicking on a field.
+Open Loads a data definition from an external file (XSD or WD).
+WD (workflow definition) files can be created in other places in the workflow or in another workflow,
+e.g. in theScript Data Input module.
+5 Data Processing Modules | 279
+5.18 Data Remapper Module
+--- PAGE 295 ---
+XSD files can be exported from theXML Data Input module or created externally. When loading the XSD
+file, you must specify, in the XML Schema Parser dialog, the array to be used as the highest-level of the
+structure (Document root) and how many dependent levels will be used.
+EXAMPLE This XSD schema was imported to the module in the screenshot (at the start of this
+section) and defines theOutput Structure that can be seen there:
+<?xml version="1.0" encoding="utf-8" ?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+<xsd:element name="Array-Accounts">
+<xsd:complexType>
+<xsd:sequence minOccurs="1" maxOccurs="1">
+<xsd:element minOccurs="1" maxOccurs="unbounded" name="Accounts">
+<xsd:complexType>
+<xsd:sequence minOccurs="1" maxOccurs="1">
+<xsd:element minOccurs="1" maxOccurs="1" name="Id" type="xsd:string"/>
+<xsd:element minOccurs="0" maxOccurs="1" name="Account" type="xsd:string"/>
+<xsd:element minOccurs="0" maxOccurs="1" name="Finishing Balance"
+type="xsd:string"/>
+<xsd:element minOccurs="1" maxOccurs="unbounded" name="Transactions">
+<xsd:complexType>
+<xsd:sequence minOccurs="1" maxOccurs="1">
+<xsd:element minOccurs="0" maxOccurs="1" name="Account Number"
+type="xsd:string"/>
+<xsd:element minOccurs="0" maxOccurs="1" name="Value"
+type="xsd:string"/>
+<xsd:element minOccurs="0" maxOccurs="1" name="Date"
+type="xsd:string"/>
+<xsd:element minOccurs="0" maxOccurs="1" name="Details"
+type="xsd:string"/>
+</xsd:sequence>
+</xsd:complexType>
+</xsd:element>
+</xsd:sequence>
+</xsd:complexType>
+</xsd:element>
+</xsd:sequence>
+</xsd:complexType>
+5 Data Processing Modules | 280
+5.18 Data Remapper Module
+--- PAGE 296 ---
+</xsd:element>
+</xsd:schema>
+5.19 Data Repeater Module
+Data Repeater repeats the processing of all previous modules as many times as is set. Each run is launched by
+the run() scripting method.
+The greatest advantage of this is to change the settings of those modules for each run, e.g. workflow parameters,
+File or ODBC scripting methods. The data from each run is then concatenated in the output.
+The module's GUI is identical to theScript Editor dialog.
+EXAMPLE The Data Repeater module can be used for reading several data files in one production run.
+This example shows a situation when in aData Input module a number of files is read in a row.
+In the Data Input module leave theInput file combo-box empty. Connect the Data Repeater module to a
+place in the workflow that suits your purpose, open it and write a script similar to this one:
+File.FileInfoList fil;
+File.list(fil,File.ListParam.Files,"map://wfd/data");
+for (Int i=0; i<fil.Size;i++)
+{
+WorkFlow.Parameter["DataInput1","dif"] = fil[i].Location;
+run();
+}
+As a result, all the files in the defined directory are read one by one and their data is concatenated together.
+5 Data Processing Modules | 281
+5.19 Data Repeater Module
+--- PAGE 297 ---
+NOTE InspireProductionConsoleparameters can be used to changeWorkflow.Parameter["DataIn→
+put1","dif"], i.e.-dif<ModuleName> filePath.
+5.20 Data Sorter Module
+The Data Sorter module can re-organize records of data in the ascending or descending order according to the
+values of a selected field.
+In order to perform this task, you must select the fields that will be used as the key to sort the rest of the records.
+5 Data Processing Modules | 282
+5.20 Data Sorter Module
+--- PAGE 298 ---
+Options Description
+Memory usage Selects what data will be stored within Inspire Designer while it is processing the workflow.
+The options are:
+● On disc - Determines that the data will be read directly from the files and sorted, record by record,
+without using any application memory.
+This is recommended if a very large data file is being read and there would be insufficient processing
+memory on the computer being used.
+● Indexed in memory - Determines that an index of the data will be loaded to the application memory
+when the workflow is processed.
+This provides faster processing if the data file is not very large, although the efficiency with large files
+is better than withFully in memory.
+● Fully in memory - Determines that all of the data will be loaded to the application memory when the
+workflow is processed.
+This provides the fastest, most efficient processing if the data file is not large.
+Add sorted to new copy If checked, a new set of data is created by the sorting.
+This results in two sets of data being present, sorted and unsorted. The sorted data appears in an independent
+array.
+EXAMPLE
+It is therefore possible (by having data sorter modules in series) to have many sets of the same data, simply
+sorted by different criteria.
+Sorted name Names the array that is created ifAdd sorted to new copy is checked.
+Remove duplicate records If checked, any records that return duplicate values in the fields that have been se-
+lected for sorting will not be passed out of the module when the workflow is processed.
+Field Name Lists all fields whose values will be used to sort the records.
+To add a sorting field, select the field from the data structure in the left area and click on theCreate New
+icon.
+Sort Type Selects the sort order. The options are:Ascending (e.g. A to Z) orDescending (e.g. Z to A).
+5 Data Processing Modules | 283
+5.20 Data Sorter Module
+--- PAGE 299 ---
+Binary compare If checked, the sorting field values (strings) are compared lexicographically by the Unicode
+values of their characters.
+The result is similar to selectingIdentical for the optionStrength except it does not recognize any particular
+linguistic rules. However, for numbers and English text it works well and it is much faster.
+Locale Specifies the language that will be used for applying the sorting rules.
+Strength Selects the sorting level:
+● Primary - Only considers differences between the base characters, e.g. sorts in alphabetical order.
+This is the fastest sorting method.
+● Secondary - Also considers differences in diacritics.
+Other differences may also be considered, depending on the locale used.
+● Tertiary - Also considers upper and lower case differences.
+● Quaternary - Also considers differences in punctuation.
+● Identical - Also considers differences in the unicode code point values of the NFD form of each string.
+Code point value differences between two strings are rare, but they are found in some languages,
+e.g. Hebrew.
+This is the slowest sorting method.
+French collation Matches the ordering of characters with diacritics preferred in French.
+Case level The casing of characters in the common fields is considered for matching.
+This is an alternative to selectingTertiary for Strength that could be used ifPrimary is selected and no con-
+sideration for diacritics is needed.
+This can also be used for Japanese to recognize the difference between small and large kana.
+Normalization mode If checked, the differences in Unicode strings are standardized.
+As a result, standard characters will be recognized even if their Unicode descriptions slightly differ.
+EXAMPLE When the two characters' and e appear together as'e, they will be recognized and sorted
+as é.
+Create New Adds the field selected in the data structure to the list of sorting fields.
+Delete Removes the selected sorting field from the list.
+Move Up /
+ Move Down Moves the selected sorting field for sorting up or down in the list and, therefore,
+in the order of importance.
+5 Data Processing Modules | 284
+5.20 Data Sorter Module
+--- PAGE 300 ---
+5.21 Data Transformer Module
+In this section
+Multi-Selection of Fields
+View Mode Tool
+Orphans Panel
+See also:
+Field Converters
+Data Transformer converts thedata-type of input data and performs other manipulations:
+● Transforms the initial input data into other data types, e.g. string into an integer, currency or date.
+● Concatenates strings (e.g. prefix+string+suffix).
+● Stacks field conversions, performing several transformations in series.
+For example, performs Input Data -> [CustomerCode -> Concatenation -> Integer] -> Output Data in a
+single conversion.
+● Employs CustomerCode to provide a conversion table for converting an alphanumeric input string to an-
+other alphanumeric output string.
+Each CustomerCode has one default value (the output string) that is applied if no predefined input strings
+match the actual data. If an input string matches the actual data, the string is passed to the output.
+● Executes scripts that manipulate the data.
+TIP Although you can perform a stacked field conversion using a single Data Transformer, you will need
+to connect a series of Data Transformers to further use any values you are calculating, e.g. if in one
+transformer you have created a
+ New Unlinked Field which returns a value and you want to further
+work with that value in a script, use a second data transformer to enter the script.
+5 Data Processing Modules | 285
+5.21 Data Transformer Module
+--- PAGE 301 ---
+When a Data Transformer is connected to the workflow, the data structure at that point in the workflow becomes
+visible in the Data View area, e.g. in the Input Data View mode:
+In this area:
+1. Select the field to be transformed (multi-selection is also possible).
+2. Select the conversion in the Field Converter column.
+See the separate sectionField Converters for a description of all conversion types.
+3. If necessary, complete the conversion specific dialogs associated to that particular conversion.
+4. Use the
+ View Mode tool to reorganize the field order and to have a better overview over your fields'
+relationships or the scripted conversions.
+5 Data Processing Modules | 286
+5.21 Data Transformer Module
+--- PAGE 302 ---
+NOTE If there are duplicate field names defined on the same level, the duplicate field becomes red with
+an exclamation mark next to it and conversion is not allowed:
+Options Description
+Input Data / Output Data Shows the fields in a tree-structure form representing the fields' relationship to each
+other.
+Type Shows thedata-type of the field as it is coming into the module.
+Field Converter Determines the conversion to be performed on the values in the field.
+For a description of individual conversion methods, see the separate sectionField Converters.
+You can also setNone and Delete by pressing the <Delete> key once or twice respectively.
+If a further configuration of the conversion is required, the
+button will appear in this column. Click on
+it to open the individual configuration dialog for that conversion.
+These conversion dependent dialogs are described in the separate sectionField Converters.
+Default Enters the default value when creating a new unlinked field.
+View Mode Tool Switches between different view modes of the data in the Data View area.
+For a detailed description, see the separate sectionView Mode Tool.
+The options below are described for theInput Data View mode, which is the default option.
+Mark Array for Save /
+ Mark Root for Save Marks the fields to be used within scripts on a different
+dependency levels than its current one.
+Select a field of Arraydata-type and click on one of the icons to mark it. Only one array can be marked
+at a time:
+● Mark Array for Save – If an array is marked for save, it can be used in a scripted conversion that
+is on any child level, i.e. when defining fields inside that array.
+Selecting only a specific array is more efficient for data processing, because less data values
+(being read from the data input) have to be saved and they are saved inside the module.
+EXAMPLE We have an array of customers containing an array of their transactions and
+we would like to know the total amount of each customer's transactions.
+To write a script that will be able to calculate the sum of each customer's transactions
+values (e.g. a new unlinked field SumAmount), we need to put the calculation in a level
+directly dependent on the customer so that the relationship between the customer and
+the calculation is one to one, i.e. for each customer there is one transaction sum.
+5 Data Processing Modules | 287
+5.21 Data Transformer Module
+--- PAGE 303 ---
+Then, because the customer's transactions are an array for each customer (one to many:
+for one customer there are many transaction amounts), to use the values in the array-type
+field Transactions we must read all of those many values before the calculation can be
+performed by SumAmount. Therefore, we must mark the Customers array by clicking on
+the Mark Array for Save icon
+ , because this is the array that governs all of the fields
+that we are working with, i.e. the array above the field that we require to use the data.
+Now, the Transactions array can be called by pressing <Ctrl>+<Space> (or <Alt>+<Esc>
+for Mac) when defining the script for SumAmount, e.g.:
+5 Data Processing Modules | 288
+5.21 Data Transformer Module
+--- PAGE 304 ---
+The script in the screenshot determines that for every new customer record, the transactions
+for that customer will be added together to create a total which is in the field SumAmount.
+SumAmount can then be used further in the workflow, e.g. in Layout.
+● Mark Root for Save – If the root array is marked for save, then any data field can be used to return
+values for any scripted conversion within the Data Transformer module.
+All data from the module is saved in a temporary file as the workflow is processed but is not effi-
+cient. Therefore, this should only be used if really necessary.
+EXAMPLE We have an array of customers containing an array of their transactions in-
+cluding a sum of each individual customer's transactions. We would like to know the total
+value of all transactions for all customers.
+To write a script that will be able to calculate the sum of all customers' transactions values
+(the sum of all SumAmount fields), we need to put a new calculation (e.g. a new unlinked
+field CompleteAmount) on the same level as the array of customers so that the relationship
+between the calculation and the customer is one to many, i.e. for each sum there are many
+customers.
+Then, we must read all of those many customer values before the calculation can be per-
+formed by CompleteAmount and, as there is no array above either of these fields (Com-
+5 Data Processing Modules | 289
+5.21 Data Transformer Module
+--- PAGE 305 ---
+pleteAmount and Customers), the whole root of the data must be saved. To do this, click
+on theMark Root as Save
+ icon.
+If neitherMark Array for Save or Mark Root for Save is set, you can only access fields with the same
+level/context when converting using a script.
+Mark for Error Marks an unlinked Boolean field so that it will contain TRUE if a conversion error occurs
+in a related field.
+5 Data Processing Modules | 290
+5.21 Data Transformer Module
+--- PAGE 306 ---
+To set this, an array must first be marked for save (see theMark Array for Save /Mark Root for Save
+description above) and a new unlinked Boolean field must be created (use theCreate Unlinked
+ icon
+and select typeBool). Then select this new field in the tree and click on the
+icon.
+This field is used for error recovery, i.e. set as theData error var. on theData Layout Properties in the
+Layout module.
+Mark for Logic Tracking Marks a selected field for storing logic tracking.
+See the separateLogic Tracking section for more information.
+Trim Spaces Trims spaces in string fields.
+When selected, all spaces at the beginning and end of string-type fields within the whole root will be
+removed. Spaces within the strings will remain.
+Delete All Sets the Field Converter value of all selected fields toDelete.
+This icon is only available when multiple fields are selected. See the sectionMulti-Selection of Fields.
+Remove Conversions Sets the Field Converter value of all selected fields back toNone.
+This icon is only available when multiple fields are selected. See the sectionMulti-Selection of Fields.
+New Array Index Adds a new index field of integerdata-type on the same level as the selected array.
+This field can be used to index the values in the array so that they can be used in scripting or Layout.
+The following conversions can be applied to the values:
+New Linked Field Creates a new linked field on the same level as the selected field (not array).
+A linked field is a duplicate of the original. It can be used to perform two different conversions with the
+same set of values.
+5 Data Processing Modules | 291
+5.21 Data Transformer Module
+--- PAGE 307 ---
+EXAMPLE You need to keep a field that contains the cash transaction amounts of a customer
+(e.g. Amount) as an integer, but you also need a field that only contains these values if the value
+is negative (e.g. a withdrawal of -$25.00).
+In such a case, you can use the Data Transformer to convert the original to a numerical value (e.g.
+Double), create a linked field and convert this version of the field to double via a script which only
+returns values to the field if the amount is less than zero (e.g.if (Amount.toDouble()<0) return
+Amount.toDouble();).
+If you select a linked field, its parent is highlighted for better orientation.
+The name of new fields has to be unique, otherwise a warning dialog will ask you to choose another
+name.
+New Unlinked Field Creates a new unlinked field on the level of the currently selected field.
+An unlinked field does not inherit any content and can be used to add new values to the records being
+read through the module, e.g. you can create a script that will use some of the other fields to calculate
+the values for this unlinked one.
+The Default column of this field can be used to enter a value that will be passed along the workflow if
+no other value is calculated, i.e. if this field is empty.
+New Special Field Opens the Select Data Operation dialog allowing you to select a type for a new field
+that will be related to the currently selected field.
+The available types are:
+● Sum – Contains the sum of the parent field's values.
+● Average – Contains the average of the parent field's values.
+● Min – Contains the lowest parent field value.
+● Max – Contains the highest parent field value.
+● Standard deviation – Contains the standard deviation (average squared deviation) of the parent
+field's values.
+● Copy up a level – Copies the selected field from a subtree to create a duplicate that is one level
+higher in the dependency tree.
+The intention is to copy fields up from a sub tree (as opposed to an array) so that they can be
+used in the same context as the fields at the new level, e.g. on the samepage when Page order
+is set toVariable selection and theRepeated by variable is the parent array for the fields of the
+new level.
+● Copy first/last value up a level - Copies the selected field from an array to create a duplicate that
+is one level higher in the dependency tree. The copy only contains the first or the last value, de-
+5 Data Processing Modules | 292
+5.21 Data Transformer Module
+--- PAGE 308 ---
+pending on the option chosen. This might be useful, for example, in cases where the value is the
+same for each record.
+EXAMPLE Data is grouped by the family name (using theData Group By module). Con-
+sequently, a new array is created, and all the entries for a field (e.g. calledFamilyName)
+are the same within a single group, e.g.Smith. In this case, one record's value is the rep-
+resentative of all values, and the field can be copied up a level in order to identify the indi-
+vidual groups.
+● Count – Contains the number of records in the array. Available for arrays only.
+● Find value with key – Creates a new variable which searches through the array for a value of the
+selected key. For this type of a field, the Select Data Operation dialog displays additional options:
+Node type Selects the type of the special field available for the givendata-type.
+Options
+Key field Selects the variable containing the required key fields.
+Search key value Enters the value of theKey field, e.g. Name, Surname, Address etc.
+Value field Selects the variable that returns the value of theSearch key value , e.g. John,
+Doe, Washington.
+EXAMPLE We are using the Data Transformer module to search through the array for
+a value of the selected key:
+The input data has the following structure:
+5 Data Processing Modules | 293
+5.21 Data Transformer Module
+--- PAGE 309 ---
+To search through the array:
+1. Open the Data Transformer module.
+2. Select an array containing the Key and Value fields, i.e.Customers.
+3. Click onCreate a special field :
+4. Select Find value with key from theNode type combo-box.
+As a result, the Select Data Operation dialog displays additional options.
+5. Select theKey variable forKey field (Key consists of the individual fields Name, Sur-
+name and Address) and specify the required key value forSearch key value, i.e.Sur-
+name:
+5 Data Processing Modules | 294
+5.21 Data Transformer Module
+--- PAGE 310 ---
+The value of the Surname field will be returned by theValue variable.
+6. Click onOK to confirm theFind_Value_Key special field.
+If you use this newly created special field, for example, in the Layout module, the
+variable returns the value of the Surname field, i.e. Doe.
+Alternatively, the same result can be achieved by creating a new variable in the Layout
+module and setting itsKind to Array value.
+If you click on a special field, its parent field is highlighted.
+NOTE
+● The Sum, Average, Min, Max and Standard deviationtype special fields can only be created
+for fields of numericaldata-type (Int, Double etc.).
+● For DateTimedata-type, the available options areSum, Min and Max.
+● For Arraydata-type, the available options areCount and Find value with key .
+Deletes the selected field.
+Find Previous /
+ Find Next Goes up/down the data structure to the previous/next field for which a
+transformation is set (i.e. skips all fields with conversion set toNone).
+Loads pre-defined conversion properties from a separately saved FCV file so that they can be applied
+to the selected field.
+Saves the conversion properties of the selected field to an external FCV file.
+5 Data Processing Modules | 295
+5.21 Data Transformer Module

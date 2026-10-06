@@ -2590,4 +2590,4 @@ Cada nueva función debe fortalecer uno de estos cinco sistemas.
 
 No construir características aisladas que no tengan lugar dentro de esta arquitectura.
 
-# END ROOTMAP
+# END ROOTMAP  
