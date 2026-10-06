@@ -64,6 +64,22 @@ final class WorkflowCanvas extends JPanel {
         this.workflow     = new Workflow("New Workflow 1");
         this.moduleEditor = moduleEditor;
         this.statusWriter = statusWriter;
+        
+        setFocusable(true);
+        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(javax.swing.KeyStroke.getKeyStroke("DELETE"), "deleteNode");
+        getActionMap().put("deleteNode", new javax.swing.AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                if (selectedNode != null) {
+                    removeNode(selectedNode);
+                } else if (selectedConnection != null) {
+                    workflow.removeConnection(selectedConnection);
+                    selectedConnection = null;
+                    repaint();
+                    statusWriter.accept("Connection deleted");
+                }
+            }
+        });
         setLayout(null);
         setBackground(InspireTheme.CANVAS);
         setPreferredSize(new Dimension(1100, 720));
