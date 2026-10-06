@@ -156,9 +156,7 @@ public final class DataFilterModule implements InspireModule {
             for (FilterCriterion criterion : criteria) {
                 if (criterion.condition == Condition.NONE) continue;
                 
-                DataNode fieldNode = record.getChild(criterion.fieldName);
-                // Si el registro no tiene el campo, en el Inspire manual esto puede ser False.
-                String cellValue = (fieldNode != null && fieldNode.getValue() != null) ? fieldNode.getValue() : "";
+                String cellValue = DataPathResolver.resolveValue(record, criterion.fieldName);
                 
                 if (!matches(cellValue, criterion)) {
                     matchesAll = false;

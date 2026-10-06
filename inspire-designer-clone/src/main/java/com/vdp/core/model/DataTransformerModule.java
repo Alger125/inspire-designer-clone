@@ -21,10 +21,6 @@ import java.util.regex.Pattern;
  */
 public final class DataTransformerModule implements InspireModule {
 
-    private static final Pattern FIELD_REF = Pattern.compile("\\{([^{}]+)}");
-    private static final Pattern FUNCTION =
-            Pattern.compile("^(UPPER|LOWER|TRIM|LENGTH)\\((.*)\\)$", Pattern.DOTALL);
-
     private final String id = UUID.randomUUID().toString();
     private String name = "DataTransformer1";
     private final List<Port> inputPorts =
@@ -133,25 +129,6 @@ public final class DataTransformerModule implements InspireModule {
 
     /** Evaluates an expression against a single record. Package-visible for tests. */
     static String evaluate(String expression, DataNode record) {
-        String expr = expression == null ? "" : expression.trim();
-        Matcher fn = FUNCTION.matcher(expr);
-        if (fn.matches()) {
-            String inner = evaluate(fn.group(2), record);
-            return switch (fn.group(1)) {
-                case "UPPER" -> inner.toUpperCase();
-                case "LOWER" -> inner.toLowerCase();
-                case "TRIM" -> inner.trim();
-                default -> String.valueOf(inner.length());
-            };
-        }
-        Matcher ref = FIELD_REF.matcher(expression == null ? "" : expression);
-        StringBuilder sb = new StringBuilder();
-        while (ref.find()) {
-            DataNode child = record.getChild(ref.group(1).trim());
-            String value = child == null || child.getValue() == null ? "" : child.getValue();
-            ref.appendReplacement(sb, Matcher.quoteReplacement(value));
-        }
-        ref.appendTail(sb);
-        return sb.toString();
+        return com.vdp.core.expression.ExpressionEngine.evaluate(expression, record);
     }
 }

@@ -210,9 +210,8 @@ public final class DataSorterModule implements InspireModule {
         }
         boolean sawNonBlank = false;
         for (DataNode record : records) {
-            DataNode child = record.getChild(crit.getFieldName());
-            String val = child != null ? child.getValue() : null;
-            if (val == null || val.isBlank()) continue;
+            String val = DataPathResolver.resolveValue(record, crit.getFieldName());
+            if (val.isBlank()) continue;
             sawNonBlank = true;
             if (!isNumeric(val)) {
                 return ComparisonType.TEXT;
@@ -228,9 +227,8 @@ public final class DataSorterModule implements InspireModule {
      */
     private void prevalidateNumber(SortCriterion crit, List<DataNode> records) {
         for (DataNode record : records) {
-            DataNode child = record.getChild(crit.getFieldName());
-            String val = child != null ? child.getValue() : null;
-            if (val == null || val.isBlank()) continue;
+            String val = DataPathResolver.resolveValue(record, crit.getFieldName());
+            if (val.isBlank()) continue;
             if (!isNumeric(val)) {
                 throw new IllegalStateException(
                     "Field '" + crit.getFieldName()
@@ -258,14 +256,11 @@ public final class DataSorterModule implements InspireModule {
      */
     private Comparator<DataNode> buildSingleComparator(SortCriterion crit, ComparisonType resolvedType) {
         return (node1, node2) -> {
-            DataNode child1 = node1.getChild(crit.getFieldName());
-            DataNode child2 = node2.getChild(crit.getFieldName());
+            String val1 = DataPathResolver.resolveValue(node1, crit.getFieldName());
+            String val2 = DataPathResolver.resolveValue(node2, crit.getFieldName());
 
-            String val1 = child1 != null ? child1.getValue() : null;
-            String val2 = child2 != null ? child2.getValue() : null;
-
-            boolean blank1 = val1 == null || val1.isBlank();
-            boolean blank2 = val2 == null || val2.isBlank();
+            boolean blank1 = val1.isBlank();
+            boolean blank2 = val2.isBlank();
 
             // NullOrder is independent of Direction
             if (blank1 && blank2) return 0;
