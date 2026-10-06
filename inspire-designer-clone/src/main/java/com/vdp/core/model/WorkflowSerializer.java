@@ -217,6 +217,8 @@ public final class WorkflowSerializer {
                 config.put("filterValue", first.getFilterValue());
             }
 
+        } else if (module instanceof DataConcatenatorModule m) {
+            config.put("numberOfInputs", m.getNumberOfInputs());
         } else if (module instanceof DataSorterModule m) {
             ArrayNode critArray = config.putArray("criteria");
             for (DataSorterModule.SortCriterion c : m.getCriteria()) {
@@ -313,6 +315,15 @@ public final class WorkflowSerializer {
                     }
                     if (config.has("filterValue")) c.setFilterValue(config.get("filterValue").asText());
                     m.getCriteria().add(c);
+                }
+                yield m;
+            }
+
+            case "Data Concatenator" -> {
+                DataConcatenatorModule m = new DataConcatenatorModule();
+                applyName(m::setName, config);
+                if (config.has("numberOfInputs")) {
+                    m.setNumberOfInputs(config.get("numberOfInputs").asInt());
                 }
                 yield m;
             }

@@ -4,6 +4,7 @@ import com.vdp.core.controller.WorkflowController;
 import com.vdp.core.model.DataGeneratorModule;
 import com.vdp.core.model.DataFilterModule;
 import com.vdp.core.model.DataInputModule;
+import com.vdp.core.model.DataConcatenatorModule;
 import com.vdp.core.model.DataSorterModule;
 import com.vdp.core.model.HttpJsonDataInputModule;
 import com.vdp.core.model.ProofRunResult;
@@ -574,6 +575,15 @@ public final class MainAppWindow extends JFrame {
             if (dialog.isAccepted()) {
                 node.repaint();
                 status.setText("Data Sorter configuration updated");
+            }
+        } else if (node.getModule() instanceof DataConcatenatorModule concatenator) {
+            DataConcatenatorConfigDialog dialog = new DataConcatenatorConfigDialog(this, concatenator);
+            dialog.setVisible(true);
+            if (dialog.isAccepted()) {
+                workflowCanvas.getWorkflow().cleanInvalidConnections();
+                node.setSize(WorkflowNode.WIDTH, WorkflowNode.HEIGHT);
+                workflowCanvas.repaint();
+                status.setText("Data Concatenator configuration updated");
             }
 
         } else {

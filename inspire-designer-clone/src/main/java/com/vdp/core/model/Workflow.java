@@ -266,6 +266,25 @@ public class Workflow {
             // Processing modules like Filter, Sorter usually pass the same schema they receive.
             // For a complete implementation, this might ask the module how it transforms the schema.
             // For now, they don't alter the structure, just pass it through.
+            if (source instanceof DataConcatenatorModule concatenator) {
+                DataNode outputRoot = DataNode.arrayNode("Records");
+                outputRoot.setDataType(DataNode.DataType.ARRAY);
+                DataNode schemaObj = DataNode.objectNode("Record");
+                schemaObj.setDataType(DataNode.DataType.OBJECT);
+                
+                for (int i = 1; i <= concatenator.getNumberOfInputs(); i++) {
+                    DataNode inSchema = getIncomingSchema(concatenator.getId(), "Input" + i);
+                    if (inSchema != null && inSchema.getType() == DataNode.NodeType.ARRAY) {
+                        for (DataNode field : inSchema.getChildren()) {
+                            if (schemaObj.getChild(field.getName()) == null) {
+                                schemaObj.addChild(field.deepCopy());
+                            }
+                        }
+                    }
+                }
+                outputRoot.addChild(schemaObj);
+                return outputRoot;
+            }
             Port firstInput = source.getInputPorts().isEmpty() ? null : source.getInputPorts().get(0);
             if (firstInput != null) {
                 return getIncomingSchema(source.getId(), firstInput.getId());

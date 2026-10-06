@@ -50,6 +50,7 @@ final class ModulePalette extends JPanel {
         addItem(list, "Data Filter", InspireTheme.DATA_PROCESSING, true);
         addItem(list, "Data Sorter", InspireTheme.DATA_PROCESSING, true);
         addItem(list, "Data Transformer", InspireTheme.DATA_PROCESSING, false);
+        addItem(list, "Data Concatenator", InspireTheme.DATA_PROCESSING, true);
 
         JScrollPane scroll = new JScrollPane(list);
         scroll.setBorder(BorderFactory.createEmptyBorder());
